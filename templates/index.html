@@ -6,136 +6,33 @@
     <title>リーチング分析アプリ</title>
     <style>
         :root {
-            --primary-color: #007bff;
-            --light-gray: #f8f9fa;
-            --gray: #6c757d;
-            --border-color: #dee2e6;
-            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --primary-color: #007bff; --light-gray: #f8f9fa; --gray: #6c757d;
+            --border-color: #dee2e6; --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        body {
-            font-family: var(--font-family);
-            background-color: var(--light-gray);
-            color: #333;
-            margin: 0;
-            padding: 2rem;
-            display: flex;
-            justify-content: center;
-        }
-        .container {
-            width: 100%;
-            max-width: 900px;
-        }
-        .card {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-        h1, h2, h3, h4 {
-            color: #333;
-        }
-        h1 {
-            color: var(--primary-color);
-            text-align: center;
-        }
+        body { font-family: var(--font-family); background-color: var(--light-gray); color: #333; margin: 0; padding: 2rem; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 900px; }
+        .card { background: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 2rem; margin-bottom: 2rem; }
+        h1, h2, h3, h4 { color: #333; }
+        h1 { color: var(--primary-color); text-align: center; }
         p { text-align: center; color: var(--gray); }
-
-        .upload-area {
-            border: 2px dashed var(--primary-color);
-            border-radius: 8px;
-            padding: 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
-        }
+        .upload-area { border: 2px dashed var(--primary-color); border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: background-color 0.2s ease-in-out; }
         .upload-area.drag-over { background-color: #e9f5ff; }
-        .upload-area p { margin: 0; }
         #file-input { display: none; }
-        #file-name {
-            margin-top: 1rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .params-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1rem;
-        }
-        .param-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-        }
-        .param-group input {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        button {
-            width: 100%;
-            padding: 0.75rem;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+        #file-name { margin-top: 1rem; font-weight: bold; color: var(--primary-color); }
+        .params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 1rem; }
+        .param-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        .param-group input { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 0.75rem; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
         button:hover { background-color: #0056b3; }
-
         #results { display: none; }
-        #spinner {
-            display: none;
-            margin: 2rem auto;
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
+        #spinner { display: none; margin: 2rem auto; width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .result-summary {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .result-summary h3 {
-            margin: 0;
-            color: var(--gray);
-            font-weight: normal;
-        }
-        .result-summary .peak-count {
-            font-size: 3rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-        #plot-container img {
-            max-width: 100%;
-            border-radius: 4px;
-        }
-        .results-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin-top: 2rem;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid var(--border-color);
-            padding: 0.75rem;
-            text-align: left;
-        }
+        .result-summary { text-align: center; margin-bottom: 2rem; }
+        .result-summary .peak-count { font-size: 3rem; font-weight: bold; color: var(--primary-color); }
+        #plot-container img { max-width: 100%; border-radius: 4px; }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
         th { background-color: var(--light-gray); }
     </style>
 </head>
@@ -157,11 +54,15 @@
                 <h3>ピーク検出パラメータ</h3>
                 <div class="params-grid">
                     <div class="param-group">
-                        <label for="peak_height">ピークの最小高さ (rad/s)</label>
-                        <input type="number" id="peak_height" value="1.0" step="0.1">
+                        <label for="min_peak_height">ピークの最小高さ (rad/s)</label>
+                        <input type="number" id="min_peak_height" value="1.0" step="0.1">
                     </div>
                     <div class="param-group">
-                        <label for="peak_prominence">ピークの顕著さ</label>
+                        <label for="max_peak_height">ピークの最大高さ (rad/s)</label>
+                        <input type="number" id="max_peak_height" value="100.0" step="0.1">
+                    </div>
+                    <div class="param-group">
+                        <label for="peak_prominence">顕著さ</label>
                         <input type="number" id="peak_prominence" value="1.0" step="0.1">
                     </div>
                     <div class="param-group">
@@ -197,8 +98,7 @@
         const fileNameDisplay = document.getElementById('file-name');
         
         uploadArea.addEventListener('click', () => fileInput.click());
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, preventDefaults, false));
-        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, e => {e.preventDefault(); e.stopPropagation();}, false));
         ['dragenter', 'dragover'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.add('drag-over'), false));
         ['dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('drag-over'), false));
         uploadArea.addEventListener('drop', (e) => {
@@ -221,16 +121,14 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (fileInput.files.length === 0) {
-                alert('ファイルを選択してください。');
-                return;
-            }
+            if (fileInput.files.length === 0) { alert('ファイルを選択してください。'); return; }
             spinner.style.display = 'block';
             resultsDiv.style.display = 'none';
 
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
-            formData.append('peak_height', document.getElementById('peak_height').value);
+            formData.append('min_peak_height', document.getElementById('min_peak_height').value);
+            formData.append('max_peak_height', document.getElementById('max_peak_height').value);
             formData.append('peak_prominence', document.getElementById('peak_prominence').value);
             formData.append('peak_distance', document.getElementById('peak_distance').value);
 
@@ -239,19 +137,16 @@
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
 
-                // Clear previous results
                 plotContainer.innerHTML = '';
                 averagesContainer.innerHTML = '';
                 tableContainer.innerHTML = '';
 
-                // Display new results
                 peakCount.textContent = results.peak_count;
 
                 const img = document.createElement('img');
                 img.src = `data:image/png;base64,${results.image}`;
                 plotContainer.appendChild(img);
                 
-                // Display averages table
                 if (results.peak_averages && results.peak_averages.length > 0) {
                     const h4 = document.createElement('h4');
                     h4.textContent = '10回ごとの平均';
@@ -267,7 +162,6 @@
                     averagesContainer.appendChild(avgTable);
                 }
                 
-                // Display all peaks table
                 if (results.peaks && results.peaks.length > 0) {
                     const h4 = document.createElement('h4');
                     h4.textContent = '全ピーク詳細';

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>リーチング分析アプリ</title>
+    <title>リーチング分析・統計アプリ</title>
     <style>
         :root {
             --primary-color: #007bff; --light-gray: #f8f9fa; --gray: #6c757d;
@@ -15,17 +15,35 @@
         h1, h2, h3, h4 { color: #333; }
         h1 { color: var(--primary-color); text-align: center; }
         p { text-align: center; color: var(--gray); }
+        .tab-buttons { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 2rem; }
+        .tab-button { padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-size: 1.1rem; font-weight: 500; color: var(--gray); border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .tab-button.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
         .upload-area { border: 2px dashed var(--primary-color); border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: background-color 0.2s ease-in-out; }
         .upload-area.drag-over { background-color: #e9f5ff; }
-        #file-input { display: none; }
-        #file-name { margin-top: 1rem; font-weight: bold; color: var(--primary-color); }
+        #file-input-peak { display: none; }
+        .file-name { margin-top: 1rem; font-weight: bold; color: var(--primary-color); }
         .params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 1rem; }
         .param-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-        .param-group input { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 0.75rem; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
-        button:hover { background-color: #0056b3; }
-        #results { display: none; }
-        #spinner { display: none; margin: 2rem auto; width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        .param-group input, .param-group select { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
+        
+        /* --- テキストエリアのスタイル --- */
+        .param-group textarea {
+            width: 100%;
+            height: 150px;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: var(--font-family);
+            font-size: 0.9rem;
+        }
+
+        button[type="submit"] { width: 100%; padding: 0.75rem; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
+        button[type="submit"]:hover { background-color: #0056b3; }
+        .results { display: none; }
+        .spinner { display: none; margin: 2rem auto; width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .result-summary { text-align: center; margin-bottom: 2rem; }
         .result-summary .peak-count { font-size: 3rem; font-weight: bold; color: var(--primary-color); }
@@ -34,155 +52,419 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
         th { background-color: var(--light-gray); }
+        .form-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="card">
-            <h1>リーチング角速度分析アプリ</h1>
-            <p>モーションデータ(CSV)をアップロードすると、角速度のピークを自動で検出します。</p>
+            <h1>リーチング分析・統計アプリ</h1>
+            <p>分析したいタスクをタブで選択してください。</p>
         </div>
 
-        <div class="card">
-            <form id="upload-form">
-                <div id="upload-area">
-                    <input type="file" id="file-input" accept=".csv">
-                    <p>ここにCSVファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択</p>
-                    <div id="file-name"></div>
-                </div>
-
-                <h3>ピーク検出パラメータ</h3>
-                <div class="params-grid">
-                    <div class="param-group">
-                        <label for="min_peak_height">ピークの最小高さ (rad/s)</label>
-                        <input type="number" id="min_peak_height" value="1.0" step="0.1">
-                    </div>
-                    <div class="param-group">
-                        <label for="max_peak_height">ピークの最大高さ (rad/s)</label>
-                        <input type="number" id="max_peak_height" value="100.0" step="0.1">
-                    </div>
-                    <div class="param-group">
-                        <label for="peak_prominence">顕著さ</label>
-                        <input type="number" id="peak_prominence" value="1.0" step="0.1">
-                    </div>
-                    <div class="param-group">
-                        <label for="peak_distance">ピーク間の最小距離 (点)</label>
-                        <input type="number" id="peak_distance" value="50" step="1">
-                    </div>
-                </div>
-                <br>
-                <button type="submit">分析開始</button>
-            </form>
+        <div class="tab-buttons">
+            <button class="tab-button active" data-tab="tab-peak">ピーク分析</button>
+            <button class="tab-button" data-tab="tab-mw">マン・ホイットニーU検定</button>
+            <button class="tab-button" data-tab="tab-wilcoxon">ウィルコクソン順位符号付検定</button>
+            <button class="tab-button" data-tab="tab-t-test">t検定</button>
         </div>
 
-        <div id="spinner"></div>
-
-        <div id="results" class="card">
-            <h2>分析結果</h2>
-            <div class="result-summary">
-                <h3>検出されたピーク数</h3>
-                <div id="peak-count" class="peak-count">0</div>
+        <div id="tab-peak" class="tab-content active">
+            <div class="card">
+                <form id="form-peak">
+                    <div id="upload-area-peak" class="upload-area">
+                        <input type="file" id="file-input-peak" accept=".csv">
+                        <p>ここにCSVファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択</p>
+                        <div id="file-name-peak" class="file-name"></div>
+                    </div>
+                    <h3>ピーク検出パラメータ</h3>
+                    <div class="params-grid">
+                        <div class="param-group">
+                            <label for="min_peak_height">最小高さ (rad/s)</label>
+                            <input type="number" id="min_peak_height" value="1.0" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label for="max_peak_height">最大高さ (rad/s)</label>
+                            <input type="number" id="max_peak_height" value="100.0" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label for="peak_prominence">顕著さ</label>
+                            <input type="number" id="peak_prominence" value="1.0" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label for="peak_distance">最小距離 (点)</label>
+                            <input type="number" id="peak_distance" value="50" step="1">
+                        </div>
+                    </div>
+                    <br>
+                    <button type="submit">分析開始</button>
+                </form>
             </div>
-            <div id="plot-container"></div>
-            
-            <div class="results-grid">
-                <div id="averages-container"></div>
-                <div id="table-container"></div>
+            <div id="spinner-peak" class="spinner"></div>
+            <div id="results-peak" class="card results">
+                <h2>分析結果 (Peak Analysis)</h2>
+                <div class="result-summary">
+                    <h3>検出されたピーク数</h3>
+                    <div id="peak-count" class="peak-count">0</div>
+                </div>
+                <div id="plot-container"></div>
+                <div class="results-grid">
+                    <div id="averages-container"></div>
+                    <div id="table-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-mw" class="tab-content">
+            <div class="card">
+                <form id="form-mw">
+                    <p>対応のない2群間 (Group 1 vs Group 2) のノンパラメトリック検定を行います。</p>
+                    <div class="form-group-grid">
+                        <div class="param-group">
+                            <label for="mw-data1"><b>Group 1</b> のデータ (カンマ区切り)</label>
+                            <textarea id="mw-data1" placeholder="4.1, 4.4, 4.2, ..."></textarea>
+                        </div>
+                        <div class="param-group">
+                            <label for="mw-data2"><b>Group 2</b> のデータ (カンマ区切り)</label>
+                            <textarea id="mw-data2" placeholder="3.5, 3.4, 3.2, ..."></textarea>
+                        </div>
+                    </div>
+                    <br>
+                    <div class="param-group">
+                        <label for="mw-alternative">検定の種類 (仮説)</label>
+                        <select id="mw-alternative">
+                            <option value="two-sided">両側検定 (Group 1 ≠ Group 2)</option>
+                            <option value="less">片側検定 (Group 1 < Group 2)</option>
+                            <option value="greater">片側検定 (Group 1 > Group 2)</option>
+                        </select>
+                    </div>
+                    <br>
+                    <button type="submit">検定開始</button>
+                </form>
+            </div>
+            <div id="spinner-mw" class="spinner"></div>
+            <div id="results-mw" class="card results">
+                <h2>検定結果 (Mann-Whitney U Test)</h2>
+                <div id="result-text-mw"></div>
+            </div>
+        </div>
+
+        <div id="tab-wilcoxon" class="tab-content">
+            <div class="card">
+                <form id="form-wilcoxon">
+                    <p>対応のある2群間 (Before vs After) のノンパラメトリック検定を行います。</p>
+                    <div class="form-group-grid">
+                        <div class="param-group">
+                            <label for="wilcoxon-data1"><b>Group 1 (例: Before)</b> (カンマ区切り)</label>
+                            <textarea id="wilcoxon-data1" placeholder="4.1, 4.4, 4.2, ..."></textarea>
+                        </div>
+                        <div class="param-group">
+                            <label for="wilcoxon-data2"><b>Group 2 (例: After)</b> (カンマ区切り)</label>
+                            <textarea id="wilcoxon-data2" placeholder="3.5, 3.4, 3.2, ..."></textarea>
+                        </div>
+                    </div>
+                    <br>
+                    <div class="param-group">
+                        <label for="wilcoxon-alternative">検定の種類 (仮説)</label>
+                        <select id="wilcoxon-alternative">
+                            <option value="two-sided">両側検定 (Group 1 ≠ Group 2)</option>
+                            <option value="less">片側検定 (Group 1 < Group 2)</option>
+                            <option value="greater">片側検定 (Group 1 > Group 2)</option>
+                        </select>
+                    </div>
+                    <br>
+                    <button type="submit">検定開始</button>
+                </form>
+            </div>
+            <div id="spinner-wilcoxon" class="spinner"></div>
+            <div id="results-wilcoxon" class="card results">
+                <h2>検定結果 (Wilcoxon Signed-Rank Test)</h2>
+                <div id="result-text-wilcoxon"></div>
+            </div>
+        </div>
+
+        <div id="tab-t-test" class="tab-content">
+            <div class="card">
+                <form id="form-t-test">
+                    <p>対応のないのt検定を行います。</p>
+                    <div class="form-group-grid">
+                        <div class="param-group">
+                            <label for="t-test-data1"><b>Group 1 (例：Before)</b>(カンマ区切り)</label>
+                            <textarea id="t-test-data1" placeholder="4.1, 4.4, 4.2, ..."></textarea>
+                        </div>
+                        <div class="param-group">
+                            <label for="t-test-data2"><b>Group 2 (例: After)</b> (カンマ区切り)</label>
+                            <textarea id="t-test-data2" placeholder="3.5, 3.4, 3.2, ..."></textarea>
+                        </div>
+                    </div>
+                    <br>
+                    <div class="param-group">
+                        <label for="t-test-alternative">検定の種類 (仮説)</label>
+                        <select id="t-test-alternative">
+                            <option value="two-sided">両側検定 (Group 1 ≠ Group 2)</option>
+                            <option value="less">片側検定 (Group 1 < Group 2)</option>
+                            <option value="greater">片側検定 (Group 1 > Group 2)</option>
+                        </select>
+                    </div>
+                    <br>
+                    <button type="submit">検定開始</button>
+                </form>
+            </div>
+            <div id="spinner-t-test" class="spinner"></div>
+            <div id="results-t-test" class="card results">
+                <h2>検定結果 (t-Test)</h2>
+                <div id="result-text-t-test"></div>
             </div>
         </div>
     </div>
 
     <script>
-        const uploadArea = document.getElementById('upload-area');
-        const fileInput = document.getElementById('file-input');
-        const fileNameDisplay = document.getElementById('file-name');
-        
-        uploadArea.addEventListener('click', () => fileInput.click());
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, e => {e.preventDefault(); e.stopPropagation();}, false));
-        ['dragenter', 'dragover'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.add('drag-over'), false));
-        ['dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('drag-over'), false));
-        uploadArea.addEventListener('drop', (e) => {
-            fileInput.files = e.dataTransfer.files;
-            updateFileName();
-        }, false);
-        
-        fileInput.addEventListener('change', updateFileName);
-        function updateFileName() {
-            fileNameDisplay.textContent = fileInput.files.length > 0 ? `選択中のファイル: ${fileInput.files[0].name}` : '';
+        // --- タブ切り替えロジック ---
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                tabContents.forEach(content => content.classList.remove('active'));
+                document.getElementById(button.dataset.tab).classList.add('active');
+            });
+        });
+
+        // --- ピーク分析タブのファイルアップロードUIロジック ---
+        function setupUploadArea(uploadAreaId, fileInputId, fileNameId) {
+            const uploadArea = document.getElementById(uploadAreaId);
+            const fileInput = document.getElementById(fileInputId);
+            const fileNameDisplay = document.getElementById(fileNameId);
+            if (!uploadArea) return; // 統計タブでは不要なので除外
+            
+            uploadArea.addEventListener('click', () => fileInput.click());
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, e => {e.preventDefault(); e.stopPropagation();}, false));
+            ['dragenter', 'dragover'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.add('drag-over'), false));
+            ['dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('drag-over'), false));
+            uploadArea.addEventListener('drop', (e) => {
+                fileInput.files = e.dataTransfer.files;
+                updateFileName(fileInput, fileNameDisplay);
+            }, false);
+            fileInput.addEventListener('change', () => updateFileName(fileInput, fileNameDisplay));
         }
+        function updateFileName(fileInput, fileNameDisplay) {
+            fileNameDisplay.textContent = fileInput.files.length > 0 ? `選択中: ${fileInput.files[0].name}` : '';
+        }
+        setupUploadArea('upload-area-peak', 'file-input-peak', 'file-name-peak');
 
-        const form = document.getElementById('upload-form');
-        const spinner = document.getElementById('spinner');
-        const resultsDiv = document.getElementById('results');
-        const peakCount = document.getElementById('peak-count');
-        const plotContainer = document.getElementById('plot-container');
-        const averagesContainer = document.getElementById('averages-container');
-        const tableContainer = document.getElementById('table-container');
+        // --- フォーム送信ロジック ---
+        // 1. ピーク分析フォーム
+        const formPeak = document.getElementById('form-peak');
+        const fileInputPeak = document.getElementById('file-input-peak');
+        const spinnerPeak = document.getElementById('spinner-peak');
+        const resultsPeak = document.getElementById('results-peak');
 
-        form.addEventListener('submit', async (e) => {
+        formPeak.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (fileInput.files.length === 0) { alert('ファイルを選択してください。'); return; }
-            spinner.style.display = 'block';
-            resultsDiv.style.display = 'none';
+            if (fileInputPeak.files.length === 0) { alert('ファイルを選択してください。'); return; }
+            spinnerPeak.style.display = 'block';
+            resultsPeak.style.display = 'none';
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', fileInputPeak.files[0]);
             formData.append('min_peak_height', document.getElementById('min_peak_height').value);
             formData.append('max_peak_height', document.getElementById('max_peak_height').value);
             formData.append('peak_prominence', document.getElementById('peak_prominence').value);
             formData.append('peak_distance', document.getElementById('peak_distance').value);
 
             try {
-                const response = await fetch('/analyze', { method: 'POST', body: formData });
+                const response = await fetch('/analyze-peak', { method: 'POST', body: formData });
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
-
-                plotContainer.innerHTML = '';
-                averagesContainer.innerHTML = '';
-                tableContainer.innerHTML = '';
-
-                peakCount.textContent = results.peak_count;
+                
+                document.getElementById('plot-container').innerHTML = '';
+                document.getElementById('averages-container').innerHTML = '';
+                document.getElementById('table-container').innerHTML = '';
+                document.getElementById('peak-count').textContent = results.peak_count;
 
                 const img = document.createElement('img');
                 img.src = `data:image/png;base64,${results.image}`;
-                plotContainer.appendChild(img);
+                document.getElementById('plot-container').appendChild(img);
                 
                 if (results.peak_averages && results.peak_averages.length > 0) {
-                    const h4 = document.createElement('h4');
-                    h4.textContent = '10回ごとの平均';
-                    averagesContainer.appendChild(h4);
+                    const h4 = document.createElement('h4'); h4.textContent = '10回ごとの平均';
+                    document.getElementById('averages-container').appendChild(h4);
                     const avgTable = document.createElement('table');
                     let avgThead = '<thead><tr><th>区間</th><th>平均角速度 (rad/s)</th></tr></thead>';
                     let avgTbody = '<tbody>';
-                    results.peak_averages.forEach(avg => {
-                        avgTbody += `<tr><td>${avg.interval}</td><td>${avg.average_velocity.toFixed(3)}</td></tr>`;
-                    });
-                    avgTbody += '</tbody>';
-                    avgTable.innerHTML = avgThead + avgTbody;
-                    averagesContainer.appendChild(avgTable);
+                    results.peak_averages.forEach(avg => { avgTbody += `<tr><td>${avg.interval}</td><td>${avg.average_velocity.toFixed(3)}</td></tr>`; });
+                    avgTbody += '</tbody>'; avgTable.innerHTML = avgThead + avgTbody;
+                    document.getElementById('averages-container').appendChild(avgTable);
                 }
-                
                 if (results.peaks && results.peaks.length > 0) {
-                    const h4 = document.createElement('h4');
-                    h4.textContent = '全ピーク詳細';
-                    tableContainer.appendChild(h4);
+                    const h4 = document.createElement('h4'); h4.textContent = '全ピーク詳細';
+                    document.getElementById('table-container').appendChild(h4);
                     const table = document.createElement('table');
                     let thead = '<thead><tr><th>ピーク時間 (s)</th><th>ピーク角速度 (rad/s)</th></tr></thead>';
                     let tbody = '<tbody>';
-                    results.peaks.forEach(peak => {
-                        tbody += `<tr><td>${peak.peak_time_s.toFixed(3)}</td><td>${peak.peak_velocity_rad_s.toFixed(3)}</td></tr>`;
-                    });
-                    tbody += '</tbody>';
-                    table.innerHTML = thead + tbody;
-                    tableContainer.appendChild(table);
+                    results.peaks.forEach(peak => { tbody += `<tr><td>${peak.peak_time_s.toFixed(3)}</td><td>${peak.peak_velocity_rad_s.toFixed(3)}</td></tr>`; });
+                    tbody += '</tbody>'; table.innerHTML = thead + tbody;
+                    document.getElementById('table-container').appendChild(table);
                 }
+                resultsPeak.style.display = 'block';
+            } catch (error) {
+                alert(`エラー: ${error.message}`);
+            } finally {
+                spinnerPeak.style.display = 'none';
+            }
+        });
 
-                resultsDiv.style.display = 'block';
+        // 2. マン・ホイットニーU検定フォーム
+        const formMw = document.getElementById('form-mw');
+        const spinnerMw = document.getElementById('spinner-mw');
+        const resultsMw = document.getElementById('results-mw');
+        const resultTextMw = document.getElementById('result-text-mw');
+
+        formMw.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data1 = document.getElementById('mw-data1').value;
+            const data2 = document.getElementById('mw-data2').value;
+            if (data1.trim() === '' || data2.trim() === '') { alert('2つのグループ両方にデータを入力してください。'); return; }
+            spinnerMw.style.display = 'block';
+            resultsMw.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('data1', data1);
+            formData.append('data2', data2);
+            formData.append('alternative', document.getElementById('mw-alternative').value);
+
+            try {
+                const response = await fetch('/analyze-mann-whitney', { method: 'POST', body: formData });
+                const results = await response.json();
+                if (!response.ok) throw new Error(results.error || 'サーバーエラー');
+
+                resultTextMw.innerHTML = `
+                    <p>U統計量: <b>${results.u_stat.toFixed(3)}</b></p>
+                    <p>P値 (p-value): <b>${results.p_value.toFixed(5)}</b></p>
+                    <hr>
+                    ${results.p_value < 0.05 ? 
+                        '<p style="color:green; font-weight:bold;">α=0.05で統計的に有意な差が見られます。</p>' : 
+                        '<p style="color:red; font-weight:bold;">α=0.05で統計的に有意な差は見られません。</p>'
+                    }
+                `;
+                resultsMw.style.display = 'block';
+            } catch (error) {
+                alert(`エラー: ${error.message}`);
+            } finally {
+                spinnerMw.style.display = 'none';
+            }
+        });
+
+        // 3. ウィルコクソン検定フォーム
+        const formWilcoxon = document.getElementById('form-wilcoxon');
+        const spinnerWilcoxon = document.getElementById('spinner-wilcoxon');
+        const resultsWilcoxon = document.getElementById('results-wilcoxon');
+        const resultTextWilcoxon = document.getElementById('result-text-wilcoxon');
+
+        formWilcoxon.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data1 = document.getElementById('wilcoxon-data1').value;
+            const data2 = document.getElementById('wilcoxon-data2').value;
+            if (data1.trim() === '' || data2.trim() === '') { alert('2つのグループ両方にデータを入力してください。'); return; }
+            spinnerWilcoxon.style.display = 'block';
+            resultsWilcoxon.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('data1', data1);
+            formData.append('data2', data2);
+            formData.append('alternative', document.getElementById('wilcoxon-alternative').value);
+
+            try {
+                const response = await fetch('/analyze-wilcoxon', { method: 'POST', body: formData });
+                const results = await response.json();
+                if (!response.ok) throw new Error(results.error || 'サーバーエラー');
+
+                resultTextWilcoxon.innerHTML = `
+                    <p>W統計量: <b>${results.w_stat.toFixed(3)}</b></p>
+                    <p>P値 (p-value): <b>${results.p_value.toFixed(5)}</b></p>
+                    <hr>
+                    ${results.p_value < 0.05 ? 
+                        '<p style="color:green; font-weight:bold;">α=0.05で統計的に有意な差が見られます。</p>' : 
+                        '<p style="color:red; font-weight:bold;">α=0.05で統計的に有意な差は見られません。</p>'
+                    }
+                `;
+                resultsWilcoxon.style.display = 'block';
+            } catch (error) {
+                alert(`エラー: ${error.message}`);
+            } finally {
+                spinnerWilcoxon.style.display = 'none';
+            }
+        });
+
+        // 4. t検定フォーム
+        const formTTest = document.getElementById('form-ttest');
+        const spinnerTTest = document.getElementById('spinner-ttest');
+        const resultsTTest = document.getElementById('results-ttest');
+        const resultTextTTest = document.getElementById('result-text-ttest');
+
+        function displayTestResult(resultsContainer, resultTextElement, results) {
+            let html = `
+                <div class="test-result-block">
+                    <h4>正規性の検定 (Shapiro-Wilk)</h4>
+                    <p>Group 1: W = ${results.shapiro1.stat.toFixed(4)}, p = ${results.shapiro1.p.toFixed(4)}</p>
+                    <p>Group 2: W = ${results.shapiro2.stat.toFixed(4)}, p = ${results.shapiro2.p.toFixed(4)}</p>
+                    <p><b>解釈:</b> ${results.normality ? '両群とも正規性を棄却できません (p > 0.05)。' : '<span class="not-significant">少なくとも一方の群が正規性に従いません (p <= 0.05)。</span>'}</p>
+                </div>
+            `;
+            
+            if (results.levene) { // t検定の場合のみ等分散性の検定結果を表示
+                html += `
+                    <div class="test-result-block">
+                        <h4>等分散性の検定 (Levene)</h4>
+                        <p>Statistic = ${results.levene.stat.toFixed(4)}, p = ${results.levene.p.toFixed(4)}</p>
+                        <p><b>解釈:</b> ${results.equal_var ? '等分散性を仮定します (p > 0.05)。' : '<span class="not-significant">等分散性を仮定しません (p <= 0.05)。</span>'}</p>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="test-result-block">
+                    <h4>${results.test_name}</h4>
+                    <p>統計量 (${results.stat_name}): <b>${results.stat.toFixed(4)}</b></p>
+                    <p>P値 (p-value): <b>${results.p_value.toFixed(5)}</b></p>
+                    <hr>
+                    ${results.p_value < 0.05 ? 
+                        '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
+                        '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
+                    }
+                    ${results.message ? `<p><small><i>${results.message}</i></small></p>` : ''}
+                </div>
+            `;
+            
+            resultTextElement.innerHTML = html;
+            resultsContainer.style.display = 'block';
+        }
+
+        formTTest.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data1 = document.getElementById('ttest-data1').value;
+            const data2 = document.getElementById('ttest-data2').value;
+            if (data1.trim() === '' || data2.trim() === '') { alert('2つのグループ両方にデータを入力してください。'); return; }
+            spinnerTTest.style.display = 'block';
+            resultsTTest.style.display = 'none';
+
+            const formData = new FormData(formTTest);
+            formData.append('data1', data1);
+            formData.append('data2', data2);
+            formData.append('alternative', document.getElementById('t-test-alternative').value);
+
+            try {
+                const response = await fetch('/analyze-ttest', { method: 'POST', body: formData });
+                const results = await response.json();
+                if (!response.ok) throw new Error(results.error || 'サーバーエラー');
+                
+                displayTestResult(resultsTTest, resultTextTTest, results);
 
             } catch (error) {
-                alert(`エラーが発生しました: ${error.message}`);
+                alert(`エラー: ${error.message}`);
             } finally {
-                spinner.style.display = 'none';
+                spinnerTTest.style.display = 'none';
             }
         });
     </script>

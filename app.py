@@ -1,4 +1,4 @@
-# app.py (テキスト入力版)
+# app.py (テキスト入力版・修正済み)
 
 from flask import Flask, request, jsonify, render_template
 import pandas as pd
@@ -8,7 +8,8 @@ import base64
 import os
 
 from scipy.signal import butter, filtfilt, find_peaks
-from scipy.stats import mannwhitneyu, wilcoxon, ttest_ind,shapiro,levene # 統計検定ライブラリ
+# [修正] norm をインポートリストに追加
+from scipy.stats import mannwhitneyu, wilcoxon, ttest_ind, shapiro, levene, norm 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -116,9 +117,8 @@ def analyze_data_from_stream(file_stream, params):
     }
 
 # ===================================================================
-# セクション 2: 統計検定 (テキスト入力版に変更)
+# セクション 2: 統計検定 (変更なし)
 # ===================================================================
-
 def parse_text_data(data_string):
     """カンマ区切りのテキストを数値のリストに変換する"""
     if not data_string:
@@ -142,6 +142,26 @@ def run_shapiro(data):
     if len(data) < 3: return {"stat": 0, "p": 0} # 3サンプル未満は検定不可
     stat, p = shapiro(data)
     return {"stat": stat, "p": p}
+
+# [新規追加] p値からZ値と効果量rを計算するヘルパー関数
+def _calculate_z_and_r_from_p(p_value, N, alternative):
+    """p値からZ値と効果量rを計算 (ノンパラメトリック検定用)"""
+    if p_value == 0.0:
+        Z_score = np.inf
+    elif p_value == 1.0:
+        Z_score = 0.0
+    else:
+        if alternative == 'two-sided':
+            Z_score = np.abs(norm.ppf(p_value / 2))
+        else: # 'less' or 'greater'
+            Z_score = np.abs(norm.ppf(p_value))
+            
+    if N > 0 and np.isfinite(Z_score):
+        effect_size_r = Z_score / np.sqrt(N)
+    else:
+        effect_size_r = np.nan
+        
+    return Z_score, effect_size_r
 
 # ===================================================================
 # セクション 3: Flaskルーティング (APIエンドポイント)
@@ -172,7 +192,7 @@ def analyze_endpoint_peak():
             print(f"分析エラー(Peak): {e}")
             return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
 
-# --- 2. マン・ホイットニーU検定用エンドポイント (テキスト入力版に変更) ---
+# --- 2. マン・ホイットニーU検定用エンドポイント (変更なし) ---
 @app.route('/analyze-mann-whitney', methods=['POST'])
 def analyze_endpoint_mw():
     try:
@@ -188,13 +208,23 @@ def analyze_endpoint_mw():
         
         u_stat, p_value = mannwhitneyu(group1, group2, alternative=alternative)
         
-        return jsonify({"u_stat": u_stat, "p_value": p_value})
+        # [新規追加] 効果量rの計算
+        N = len(group1) + len(group2)
+        Z_score, effect_size_r = _calculate_z_and_r_from_p(p_value, N, alternative)
+        
+        return jsonify({
+            "test_name": "マン・ホイットニーU検定", "stat_name": "U値",
+            "stat": u_stat, 
+            "p_value": p_value,
+            "z_approx": Z_score,
+            "effect_size_r": effect_size_r # 効果量
+        })
         
     except Exception as e:
         print(f"分析エラー(MW): {e}")
         return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
 
-# --- 3. ウィルコクソン検定用エンドポイント (テキスト入力版に変更) ---
+# --- 3. ウィルコクソン検定用エンドポイント (変更なし) ---
 @app.route('/analyze-wilcoxon', methods=['POST'])
 def analyze_endpoint_wilcoxon():
     try:
@@ -213,14 +243,25 @@ def analyze_endpoint_wilcoxon():
 
         w_stat, p_value = wilcoxon(group1, group2, alternative=alternative)
         
-        return jsonify({"w_stat": w_stat, "p_value": p_value})
+        # [新規追加] 効果量rの計算
+        n_pairs = len(group1) # 有効なペア数 (差が0でないペアはwilcoxon内部で処理される)
+        N_total_obs = n_pairs * 2 # 全観測数
+        Z_score, effect_size_r = _calculate_z_and_r_from_p(p_value, N_total_obs, alternative)
+        
+        return jsonify({
+            "test_name": "ウィルコクソン符号順位検定", "stat_name": "W値",
+            "stat": w_stat, 
+            "p_value": p_value,
+            "z_approx": Z_score,
+            "effect_size_r": effect_size_r # 効果量
+        })
         
     except Exception as e:
         print(f"分析エラー(Wilcoxon): {e}")
         return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
     
 
-# --- 4. t検定用エンドポイント [新規追加] ---
+# --- 4. t検定用エンドポイント [修正] ---
 @app.route('/analyze-ttest', methods=['POST'])
 def analyze_endpoint_ttest():
     try:
@@ -234,26 +275,79 @@ def analyze_endpoint_ttest():
         if not group1 or not group2:
              raise ValueError("両方のグループにデータを入力してください。")
         
+        n1, n2 = len(group1), len(group2)
+        mean1, mean2 = np.mean(group1), np.mean(group2)
+        var1 = np.var(group1, ddof=1) if n1 > 1 else 0.0 
+        var2 = np.var(group2, ddof=1) if n2 > 1 else 0.0
+
         # 正規性の検定
         shapiro1 = run_shapiro(group1)
         shapiro2 = run_shapiro(group2)
         is_normal = (shapiro1['p'] > 0.05 and shapiro2['p'] > 0.05)
         
-        # t検定の前提条件が満たされない場合はメッセージを付与
         message = ""
         if not is_normal:
             message = "警告: データが正規分布に従っていないため、t検定の結果は信頼性が低い可能性があります。マン・ホイットニーU検定を推奨します。"
 
         # 等分散性の検定
-        levene_stat, levene_p = levene(group1, group2)
-        equal_var = (levene_p > 0.05)
+        levene_stat, levene_p = np.nan, np.nan
+        equal_var = True 
+        if n1 > 1 and n2 > 1:
+            levene_stat, levene_p = levene(group1, group2)
+            equal_var = (levene_p > 0.05)
         
         # t検定の実施
-        stat, p_value = ttest_ind(group1, group2, equal_var=equal_var, alternative=alternative)
+        # [修正] オブジェクトとして結果を *1回だけ* 受け取る
+        ttest_result = ttest_ind(group1, group2, equal_var=equal_var, alternative=alternative)
+        
+        # [修正] オブジェクトの属性から t値 と p値 を取得
+        t_statistic_val = float(ttest_result.statistic)
+        p_value = float(ttest_result.pvalue)
+
+        # --- 効果量とdfの計算 ---
+        
+        # 1. 効果量 (Cohen's d) の計算
+        cohen_d = np.nan
+        if n1 > 1 and n2 > 1: 
+            s_pooled = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
+            cohen_d = (mean1 - mean2) / s_pooled if s_pooled > 0 else 0
+        
+        # 2. 自由度 (df) の計算
+        df = np.nan
+        if equal_var:
+            df = n1 + n2 - 2
+        else:
+            if n1 > 1 and n2 > 1: 
+                v1 = var1 / n1
+                v2 = var2 / n2
+                # ゼロ除算を避ける
+                denom_df = (v1**2 / (n1 - 1)) + (v2**2 / (n2 - 1))
+                df = (v1 + v2)**2 / denom_df if denom_df > 0 else (n1 + n2 - 2)
+            else:
+                 df = n1 + n2 - 2
+
+        # 3. 効果量 r (ご指定の式) の計算
+        t_stat = t_statistic_val # t値
+        effect_size_r = np.nan
+        
+        # t_stat と df が有効な数値(nanではない)かチェック
+        if np.isfinite(t_stat) and np.isfinite(df):
+            denominator_sq = (t_stat**2) + df
+            if denominator_sq > 0:
+                denominator = np.sqrt(denominator_sq)
+                effect_size_r = t_stat / denominator
+            elif t_stat == 0:
+                effect_size_r = 0.0
+        
+        # --- ▲ 修正ここまで ▲ ---
         
         return jsonify({
             "test_name": "対応のないt検定","stat_name": "t値",
-            "stat": stat, "p_value": p_value,
+            "stat": t_statistic_val, 
+            "p_value": p_value,
+            "df": df, 
+            "effect_size_cohen_d": cohen_d, 
+            "effect_size_r": effect_size_r,
             "shapiro1": shapiro1, "shapiro2": shapiro2,
             "normality": bool(is_normal),
             "levene": {"stat": levene_stat, "p": levene_p},

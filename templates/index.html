@@ -8,6 +8,7 @@
         :root {
             --primary-color: #007bff; --light-gray: #f8f9fa; --gray: #6c757d;
             --border-color: #dee2e6; --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --danger-color: #dc3545; --success-color: #28a745;
         }
         body { font-family: var(--font-family); background-color: var(--light-gray); color: #333; margin: 0; padding: 2rem; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 900px; }
@@ -53,6 +54,31 @@
         th, td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
         th { background-color: var(--light-gray); }
         .form-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+        /* --- [新規追加] 統計結果のスタイル --- */
+        .test-result-block {
+            background-color: #fdfdfd;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .test-result-block h4 {
+            margin-top: 0;
+            color: var(--primary-color);
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        .significant {
+            color: var(--success-color);
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .not-significant {
+            color: var(--danger-color);
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
     </style>
 </head>
 <body>
@@ -212,14 +238,31 @@
             </div>
             <div id="spinner-ttest" class="spinner"></div>
             <div id="results-ttest" class="card results">
-                <h2>検定結果 (ttest)</h2>
+                <h2>検定結果 (t-test)</h2>
                 <div id="result-text-ttest"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- タブ切り替えロジック ---
+        // --- [新規追加] エラー回避のための安全な数値フォーマット関数 ---
+        /**
+         * 数値を安全にフォーマットします (undefined, null, NaN, Infinity を "N/A" にします)。
+         * これで .toFixed() エラーを防ぎます。
+         * @param {*} value - フォーマットする値
+         * @param {number} digits - 小数点以下の桁数
+         * @returns {string} - フォーマットされた文字列
+         */
+        function formatNumber(value, digits = 3) {
+            // 値が数値型(number)であり、かつ有限(finite)であるかチェック
+            if (typeof value === 'number' && isFinite(value)) {
+                return value.toFixed(digits);
+            }
+            // その他の無効な値 (undefined, null, NaN, Infinity, -Infinity)
+            return "N/A";
+        }
+
+        // --- タブ切り替えロジック (変更なし) ---
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
         tabButtons.forEach(button => {
@@ -231,12 +274,12 @@
             });
         });
 
-        // --- ピーク分析タブのファイルアップロードUIロジック ---
+        // --- ピーク分析タブのUIロジック (変更なし) ---
         function setupUploadArea(uploadAreaId, fileInputId, fileNameId) {
             const uploadArea = document.getElementById(uploadAreaId);
             const fileInput = document.getElementById(fileInputId);
             const fileNameDisplay = document.getElementById(fileNameId);
-            if (!uploadArea) return; // 統計タブでは不要なので除外
+            if (!uploadArea) return; 
             
             uploadArea.addEventListener('click', () => fileInput.click());
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, e => {e.preventDefault(); e.stopPropagation();}, false));
@@ -254,7 +297,7 @@
         setupUploadArea('upload-area-peak', 'file-input-peak', 'file-name-peak');
 
         // --- フォーム送信ロジック ---
-        // 1. ピーク分析フォーム
+        // 1. ピーク分析フォーム (変更なし)
         const formPeak = document.getElementById('form-peak');
         const fileInputPeak = document.getElementById('file-input-peak');
         const spinnerPeak = document.getElementById('spinner-peak');
@@ -293,7 +336,7 @@
                     const avgTable = document.createElement('table');
                     let avgThead = '<thead><tr><th>区間</th><th>平均角速度 (rad/s)</th></tr></thead>';
                     let avgTbody = '<tbody>';
-                    results.peak_averages.forEach(avg => { avgTbody += `<tr><td>${avg.interval}</td><td>${avg.average_velocity.toFixed(3)}</td></tr>`; });
+                    results.peak_averages.forEach(avg => { avgTbody += `<tr><td>${avg.interval}</td><td>${formatNumber(avg.average_velocity, 3)}</td></tr>`; });
                     avgTbody += '</tbody>'; avgTable.innerHTML = avgThead + avgTbody;
                     document.getElementById('averages-container').appendChild(avgTable);
                 }
@@ -303,7 +346,7 @@
                     const table = document.createElement('table');
                     let thead = '<thead><tr><th>ピーク時間 (s)</th><th>ピーク角速度 (rad/s)</th></tr></thead>';
                     let tbody = '<tbody>';
-                    results.peaks.forEach(peak => { tbody += `<tr><td>${peak.peak_time_s.toFixed(3)}</td><td>${peak.peak_velocity_rad_s.toFixed(3)}</td></tr>`; });
+                    results.peaks.forEach(peak => { tbody += `<tr><td>${formatNumber(peak.peak_time_s, 3)}</td><td>${formatNumber(peak.peak_velocity_rad_s, 3)}</td></tr>`; });
                     tbody += '</tbody>'; table.innerHTML = thead + tbody;
                     document.getElementById('table-container').appendChild(table);
                 }
@@ -315,7 +358,7 @@
             }
         });
 
-        // 2. マン・ホイットニーU検定フォーム
+        // 2. マン・ホイットニーU検定フォーム [修正]
         const formMw = document.getElementById('form-mw');
         const spinnerMw = document.getElementById('spinner-mw');
         const resultsMw = document.getElementById('results-mw');
@@ -339,13 +382,22 @@
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
 
+                // [修正] 効果量rなどを表示するように変更
                 resultTextMw.innerHTML = `
-                    <p>U統計量: <b>${results.u_stat.toFixed(3)}</b></p>
-                    <p>P値 (p-value): <b>${results.p_value.toFixed(5)}</b></p>
+                    <div class="test-result-block">
+                        <h4>${results.test_name}</h4>
+                        <p>統計量 (${results.stat_name}): <b>${formatNumber(results.stat, 3)}</b></p>
+                        <p>P値 (p-value): <b>${formatNumber(results.p_value, 5)}</b></p>
+                    </div>
+                    <div class="test-result-block">
+                        <h4>効果量 (Effect Size)</h4>
+                        <p>Z値 (近似): <b>${formatNumber(results.z_approx, 3)}</b></p>
+                        <p>効果量 r (r = Z/sqrt(N)): <b>${formatNumber(results.effect_size_r, 3)}</b></p>
+                    </div>
                     <hr>
                     ${results.p_value < 0.05 ? 
-                        '<p style="color:green; font-weight:bold;">α=0.05で統計的に有意な差が見られます。</p>' : 
-                        '<p style="color:red; font-weight:bold;">α=0.05で統計的に有意な差は見られません。</p>'
+                        '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
+                        '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
                     }
                 `;
                 resultsMw.style.display = 'block';
@@ -356,7 +408,7 @@
             }
         });
 
-        // 3. ウィルコクソン検定フォーム
+        // 3. ウィルコクソン検定フォーム [修正]
         const formWilcoxon = document.getElementById('form-wilcoxon');
         const spinnerWilcoxon = document.getElementById('spinner-wilcoxon');
         const resultsWilcoxon = document.getElementById('results-wilcoxon');
@@ -380,13 +432,22 @@
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
 
+                // [修正] 効果量rなどを表示するように変更
                 resultTextWilcoxon.innerHTML = `
-                    <p>W統計量: <b>${results.w_stat.toFixed(3)}</b></p>
-                    <p>P値 (p-value): <b>${results.p_value.toFixed(5)}</b></p>
+                    <div class="test-result-block">
+                        <h4>${results.test_name}</h4>
+                        <p>統計量 (${results.stat_name}): <b>${formatNumber(results.w_stat, 3)}</b></p>
+                        <p>P値 (p-value): <b>${formatNumber(results.p_value, 5)}</b></p>
+                    </div>
+                    <div class="test-result-block">
+                        <h4>効果量 (Effect Size)</h4>
+                        <p>Z値 (近似): <b>${formatNumber(results.z_approx, 3)}</b></p>
+                        <p>効果量 r (r = Z/sqrt(N)): <b>${formatNumber(results.effect_size_r, 3)}</b></p>
+                    </div>
                     <hr>
                     ${results.p_value < 0.05 ? 
-                        '<p style="color:green; font-weight:bold;">α=0.05で統計的に有意な差が見られます。</p>' : 
-                        '<p style="color:red; font-weight:bold;">α=0.05で統計的に有意な差は見られません。</p>'
+                        '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
+                        '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
                     }
                 `;
                 resultsWilcoxon.style.display = 'block';
@@ -397,44 +458,59 @@
             }
         });
 
-        // 4. t検定フォーム
+        // 4. t検定フォーム [修正]
         const formTTest = document.getElementById('form-ttest');
         const spinnerTTest = document.getElementById('spinner-ttest');
         const resultsTTest = document.getElementById('results-ttest');
         const resultTextTTest = document.getElementById('result-text-ttest');
 
+        // [修正] t検定の結果表示関数を、効果量r, d, df を表示するように書き換え
         function displayTestResult(resultsContainer, resultTextElement, results) {
             let html = `
                 <div class="test-result-block">
                     <h4>正規性の検定 (Shapiro-Wilk)</h4>
-                    <p>Group 1: W = ${results.shapiro1.stat.toFixed(4)}, p = ${results.shapiro1.p.toFixed(4)}</p>
-                    <p>Group 2: W = ${results.shapiro2.stat.toFixed(4)}, p = ${results.shapiro2.p.toFixed(4)}</p>
+                    <p>Group 1: W = ${formatNumber(results.shapiro1.stat, 4)}, p = ${formatNumber(results.shapiro1.p, 4)}</p>
+                    <p>Group 2: W = ${formatNumber(results.shapiro2.stat, 4)}, p = ${formatNumber(results.shapiro2.p, 4)}</p>
                     <p><b>解釈:</b> ${results.normality ? '両群とも正規性を棄却できません (p > 0.05)。' : '<span class="not-significant">少なくとも一方の群が正規性に従いません (p <= 0.05)。</span>'}</p>
                 </div>
             `;
             
-            if (results.levene) { // t検定の場合のみ等分散性の検定結果を表示
-                html += `
-                    <div class="test-result-block">
-                        <h4>等分散性の検定 (Levene)</h4>
-                        <p>Statistic = ${results.levene.stat.toFixed(4)}, p = ${results.levene.p.toFixed(4)}</p>
-                        <p><b>解釈:</b> ${results.equal_var ? '等分散性を仮定します (p > 0.05)。' : '<span class="not-significant">等分散性を仮定しません (p <= 0.05)。</span>'}</p>
-                    </div>
-                `;
-            }
+            // Levene検定の結果 (dfなどと一緒に返ってくる)
+            html += `
+                <div class="test-result-block">
+                    <h4>等分散性の検定 (Levene)</h4>
+                    <p>Statistic = ${formatNumber(results.levene.stat, 4)}, p = ${formatNumber(results.levene.p, 4)}</p>
+                    <p><b>解釈:</b> ${results.equal_var ? '等分散性を仮定します (p > 0.05)。' : '<span class="not-significant">等分散性を仮定しません (p <= 0.05)。</span>'}</p>
+                </div>
+            `;
 
+            // t検定の結果
             html += `
                 <div class="test-result-block">
                     <h4>${results.test_name}</h4>
-                    <p>統計量 (${results.stat_name}): <b>${results.stat.toFixed(4)}</b></p>
-                    <p>P値 (p-value): <b>${results.p_value.toFixed(5)}</b></p>
-                    <hr>
-                    ${results.p_value < 0.05 ? 
-                        '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
-                        '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
-                    }
-                    ${results.message ? `<p><small><i>${results.message}</i></small></p>` : ''}
+                    <p>統計量 (${results.stat_name}): <b>${formatNumber(results.stat, 4)}</b></p>
+                    <p>自由度 (df): <b>${formatNumber(results.df, 2)}</b></p>
+                    <p>P値 (p-value): <b>${formatNumber(results.p_value, 5)}</b></p>
                 </div>
+            `;
+
+            // 効果量
+            html += `
+                <div class="test-result-block">
+                    <h4>効果量 (Effect Size)</h4>
+                    <p>Cohen's d: <b>${formatNumber(results.effect_size_cohen_d, 3)}</b></p>
+                    <p>効果量 r (t-based): <b>${formatNumber(results.effect_size_r, 3)}</b></p>
+                </div>
+            `;
+
+            // 最終結論
+            html += `
+                <hr>
+                ${results.p_value < 0.05 ? 
+                    '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
+                    '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
+                }
+                ${results.message ? `<p><small><i>${results.message}</i></small></p>` : ''}
             `;
             
             resultTextElement.innerHTML = html;
@@ -459,6 +535,7 @@
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
                 
+                // 修正された関数で結果を表示
                 displayTestResult(resultsTTest, resultTextTTest, results);
 
             } catch (error) {

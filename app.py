@@ -252,20 +252,17 @@ def analyze_endpoint_ttest():
         stat, p_value = ttest_ind(group1, group2, equal_var=equal_var, alternative=alternative)
         
         return jsonify({
-            "test_name": "対応のないt検定",
-            "stat_name": "t値",
-            "stat": stat,
-            "p_value": p_value,
-            "shapiro1": shapiro1,
-            "shapiro2": shapiro2,
-            "normality": is_normal,
+            "test_name": "対応のないt検定","stat_name": "t値",
+            "stat": stat, "p_value": p_value,
+            "shapiro1": shapiro1, "shapiro2": shapiro2,
+            "normality": bool(is_normal),
             "levene": {"stat": levene_stat, "p": levene_p},
-            "equal_var": equal_var,
+            "equal_var": bool(equal_var),
             "message": message
         })
         
     except Exception as e:
-        print(f"分析エラー(t-test): {e}")
+        print(f"分析エラー(ttest): {e}")
         return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
 
 if __name__ == '__main__':

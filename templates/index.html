@@ -66,7 +66,7 @@
             <button class="tab-button active" data-tab="tab-peak">ピーク分析</button>
             <button class="tab-button" data-tab="tab-mw">マン・ホイットニーU検定</button>
             <button class="tab-button" data-tab="tab-wilcoxon">ウィルコクソン順位符号付検定</button>
-            <button class="tab-button" data-tab="tab-t-test">t検定</button>
+            <button class="tab-button" data-tab="tab-ttest">t検定</button>
         </div>
 
         <div id="tab-peak" class="tab-content active">
@@ -183,24 +183,24 @@
             </div>
         </div>
 
-        <div id="tab-t-test" class="tab-content">
+        <div id="tab-ttest" class="tab-content">
             <div class="card">
-                <form id="form-t-test">
+                <form id="form-ttest">
                     <p>対応のないのt検定を行います。</p>
                     <div class="form-group-grid">
                         <div class="param-group">
-                            <label for="t-test-data1"><b>Group 1 (例：Before)</b>(カンマ区切り)</label>
-                            <textarea id="t-test-data1" placeholder="4.1, 4.4, 4.2, ..."></textarea>
+                            <label for="ttest-data1"><b>Group 1 (例：Before)</b>(カンマ区切り)</label>
+                            <textarea id="ttest-data1" placeholder="4.1, 4.4, 4.2, ..."></textarea>
                         </div>
                         <div class="param-group">
-                            <label for="t-test-data2"><b>Group 2 (例: After)</b> (カンマ区切り)</label>
-                            <textarea id="t-test-data2" placeholder="3.5, 3.4, 3.2, ..."></textarea>
+                            <label for="ttest-data2"><b>Group 2 (例: After)</b> (カンマ区切り)</label>
+                            <textarea id="ttest-data2" placeholder="3.5, 3.4, 3.2, ..."></textarea>
                         </div>
                     </div>
                     <br>
                     <div class="param-group">
-                        <label for="t-test-alternative">検定の種類 (仮説)</label>
-                        <select id="t-test-alternative">
+                        <label for="ttest-alternative">検定の種類 (仮説)</label>
+                        <select id="ttest-alternative">
                             <option value="two-sided">両側検定 (Group 1 ≠ Group 2)</option>
                             <option value="less">片側検定 (Group 1 < Group 2)</option>
                             <option value="greater">片側検定 (Group 1 > Group 2)</option>
@@ -210,10 +210,10 @@
                     <button type="submit">検定開始</button>
                 </form>
             </div>
-            <div id="spinner-t-test" class="spinner"></div>
-            <div id="results-t-test" class="card results">
-                <h2>検定結果 (t-Test)</h2>
-                <div id="result-text-t-test"></div>
+            <div id="spinner-ttest" class="spinner"></div>
+            <div id="results-ttest" class="card results">
+                <h2>検定結果 (ttest)</h2>
+                <div id="result-text-ttest"></div>
             </div>
         </div>
     </div>
@@ -452,7 +452,7 @@
             const formData = new FormData(formTTest);
             formData.append('data1', data1);
             formData.append('data2', data2);
-            formData.append('alternative', document.getElementById('t-test-alternative').value);
+            formData.append('alternative', document.getElementById('ttest-alternative').value);
 
             try {
                 const response = await fetch('/analyze-ttest', { method: 'POST', body: formData });

@@ -1,363 +1,195 @@
-# app.py (テキスト入力版・修正済み)
-
+"""
+Flaskアプリケーション - リーチング分析・統計アプリ
+ピーク分析と統計検定機能を提供
+"""
 from flask import Flask, request, jsonify, render_template
-import pandas as pd
-import numpy as np
-import io
-import base64
-import os
+from typing import Dict, Any, Tuple
 
-from scipy.signal import butter, filtfilt, find_peaks
-# [修正] norm をインポートリストに追加
-from scipy.stats import mannwhitneyu, wilcoxon, ttest_ind, shapiro, levene, norm 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import seaborn as sns
+from utils.data_processing import parse_text_data
+from utils.peak_analysis import analyze_peak_data
+from utils.plotting import plot_angular_velocity_with_peaks
+from utils.statistical_tests import (
+    perform_mannwhitney_test,
+    perform_wilcoxon_test,
+    perform_ttest
+)
+import config
 
 app = Flask(__name__)
 
-# ===================================================================
-# セクション 1: ピーク分析 (変更なし)
-# ===================================================================
-# (このセクションの関数は前回のコードと同一です)
 
-def calculate_angular_velocity(df, time_col, angle_rad_col):
-    time_diff = df[time_col].diff()
-    angle_diff = df[angle_rad_col].diff()
-    angular_velocity = np.where(time_diff > 0, angle_diff / time_diff, 0)
-    df['angular_velocity_raw'] = np.abs(angular_velocity)
-    return df
-
-def apply_lowpass_filter(data, cutoff, fs, order=4):
-    nyquist = 0.5 * fs
-    normal_cutoff = cutoff / nyquist
-    b, a = butter(order, normal_cutoff, btype='low', analog=False)
-    filtered_data = filtfilt(b, a, data)
-    return filtered_data
-
-def find_velocity_peaks(df, velocity_col, height, prominence, distance):
-    find_peaks_result = find_peaks(
-        df[velocity_col], height=height, prominence=prominence, distance=distance
-    )
-    if find_peaks_result and len(find_peaks_result) >= 2:
-        return find_peaks_result[0], find_peaks_result[1]
-    else:
-        return np.array([]), {}
-
-def analyze_data_from_stream(file_stream, params):
-    try:
-        df = pd.read_csv(file_stream, encoding='utf-8')
-    except UnicodeDecodeError:
-        file_stream.seek(0)
-        df = pd.read_csv(file_stream, encoding='shift_jis')
-
-    df = df.rename(columns=lambda x: x.strip())
+def handle_error(error: Exception, error_type: str = "エラー") -> Tuple[Dict[str, str], int]:
+    """
+    エラーハンドリングの統一関数
     
-    TIME_COL = 'time'
-    ANGLE_COL = 'Lower_Arm_R/rotation_y'
-    CUTOFF_FREQ = 5.0
+    Args:
+        error: 発生した例外
+        error_type: エラーの種類（ログ用）
+        
+    Returns:
+        (エラーレスポンス辞書, HTTPステータスコード) のタプル
+    """
+    error_message = str(error)
+    print(f"分析エラー({error_type}): {error_message}")
+    return jsonify({"error": f"分析中にエラーが発生しました: {error_message}"}), 500
 
-    if TIME_COL not in df.columns or ANGLE_COL not in df.columns:
-        raise ValueError(f"CSVに '{TIME_COL}' または '{ANGLE_COL}' の列が見つかりません。")
 
-    df['angle_rad'] = np.deg2rad(df[ANGLE_COL])
-    df = calculate_angular_velocity(df, TIME_COL, 'angle_rad')
-    sampling_freq = 1 / df[TIME_COL].diff().mean()
-    df['angular_velocity_filtered'] = apply_lowpass_filter(
-        df['angular_velocity_raw'].fillna(0), cutoff=CUTOFF_FREQ, fs=sampling_freq
-    )
-    peak_height_range = (params['min_peak_height'], params['max_peak_height'])
-    peaks, properties = find_velocity_peaks(
-        df, 'angular_velocity_filtered',
-        height=peak_height_range,
-        prominence=params['peak_prominence'],
-        distance=params['peak_distance']
-    )
-    peak_info = pd.DataFrame({
-        'peak_time_s': df.loc[peaks, TIME_COL].to_numpy(),
-        'peak_velocity_rad_s': properties.get('peak_heights', np.array([]))
-    })
-    peak_averages = []
-    if not peak_info.empty:
-        num_peaks = len(peak_info)
-        group_indices = np.arange(num_peaks) // 10
-        avg_data = peak_info.groupby(group_indices)['peak_velocity_rad_s'].mean()
-        for i_raw, avg_val in avg_data.items():
-            i = int(i_raw)
-            start_peak = i * 10 + 1
-            end_peak = min((i + 1) * 10, num_peaks)
-            peak_averages.append({
-                "interval": f"Peaks {start_peak}-{end_peak}",
-                "average_velocity": avg_val
-            })
-
-    fig, ax1 = plt.subplots(figsize=(12, 6))
-    sns.set_style("whitegrid")
-    ax1.set_xlabel('Time (s)')
-    ax1.set_ylabel('Angular Velocity (rad/s)', color='tab:blue')
-    ax1.plot(df[TIME_COL], df['angular_velocity_filtered'], color='tab:blue', label='Angular Velocity')
-    ax1.plot(df.loc[peaks, TIME_COL], df.loc[peaks, 'angular_velocity_filtered'], "x", color='red', markersize=10, label='Peak')
-    ax1.legend()
-    plt.title('Angular Velocity and Detected Peaks')
-    plt.grid(True)
+def extract_peak_params(request_form) -> Dict[str, Any]:
+    """
+    リクエストからピーク検出パラメータを抽出
     
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    buf.close()
-    plt.close(fig)
-
+    Args:
+        request_form: Flask request.form オブジェクト
+        
+    Returns:
+        ピーク検出パラメータの辞書
+    """
     return {
-        "image": img_b64, 
-        "peaks": peak_info.to_dict(orient='records'),
-        "peak_count": len(peaks),
-        "peak_averages": peak_averages
+        'min_peak_height': float(
+            request_form.get('min_peak_height', config.DEFAULT_PEAK_PARAMS['min_peak_height'])
+        ),
+        'max_peak_height': float(
+            request_form.get('max_peak_height', config.DEFAULT_PEAK_PARAMS['max_peak_height'])
+        ),
+        'peak_prominence': float(
+            request_form.get('peak_prominence', config.DEFAULT_PEAK_PARAMS['peak_prominence'])
+        ),
+        'peak_distance': int(
+            request_form.get('peak_distance', config.DEFAULT_PEAK_PARAMS['peak_distance'])
+        ),
     }
 
-# ===================================================================
-# セクション 2: 統計検定 (変更なし)
-# ===================================================================
-def parse_text_data(data_string):
-    """カンマ区切りのテキストを数値のリストに変換する"""
-    if not data_string:
-        return []
-    
-    # 全角カンマを半角に置換、空白を削除
-    data_string = data_string.replace('，', ',').strip()
-    
-    values = []
-    for item in data_string.split(','):
-        item = item.strip() # 前後の空白を削除
-        if item: # 空の文字列は無視
-            try:
-                values.append(float(item))
-            except ValueError:
-                raise ValueError(f"データ '{item}' を数値に変換できません。カンマ区切りで数値を入力してください。")
-    return values
-
-def run_shapiro(data):
-    """シャピロ・ウィルク検定を実行し、結果を辞書で返す"""
-    if len(data) < 3: return {"stat": 0, "p": 0} # 3サンプル未満は検定不可
-    stat, p = shapiro(data)
-    return {"stat": stat, "p": p}
-
-# [新規追加] p値からZ値と効果量rを計算するヘルパー関数
-def _calculate_z_and_r_from_p(p_value, N, alternative):
-    """p値からZ値と効果量rを計算 (ノンパラメトリック検定用)"""
-    if p_value == 0.0:
-        Z_score = np.inf
-    elif p_value == 1.0:
-        Z_score = 0.0
-    else:
-        if alternative == 'two-sided':
-            Z_score = np.abs(norm.ppf(p_value / 2))
-        else: # 'less' or 'greater'
-            Z_score = np.abs(norm.ppf(p_value))
-            
-    if N > 0 and np.isfinite(Z_score):
-        effect_size_r = Z_score / np.sqrt(N)
-    else:
-        effect_size_r = np.nan
-        
-    return Z_score, effect_size_r
-
-# ===================================================================
-# セクション 3: Flaskルーティング (APIエンドポイント)
-# ===================================================================
 
 @app.route('/')
 def index():
+    """メインページを表示"""
     return render_template('index.html')
 
-# --- 1. ピーク分析用エンドポイント (変更なし) ---
+
 @app.route('/analyze-peak', methods=['POST'])
 def analyze_endpoint_peak():
-    if 'file' not in request.files: return jsonify({"error": "ファイルがありません"}), 400
-    file = request.files['file']
-    if file.filename == '': return jsonify({"error": "ファイルが選択されていません"}), 400
+    """
+    ピーク分析エンドポイント
+    CSVファイルから角速度のピークを検出し、分析結果を返す
+    """
+    # ファイルの検証
+    if 'file' not in request.files:
+        return jsonify({"error": "ファイルがありません"}), 400
     
-    if file:
-        try:
-            params = {
-                'min_peak_height': float(request.form.get('min_peak_height', 1.0)),
-                'max_peak_height': float(request.form.get('max_peak_height', 100.0)),
-                'peak_prominence': float(request.form.get('peak_prominence', 1.0)),
-                'peak_distance': int(request.form.get('peak_distance', 50)),
-            }
-            results = analyze_data_from_stream(file.stream, params)
-            return jsonify(results)
-        except Exception as e:
-            print(f"分析エラー(Peak): {e}")
-            return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "ファイルが選択されていません"}), 400
+    
+    try:
+        # パラメータの抽出
+        params = extract_peak_params(request.form)
+        
+        # ピーク分析の実行
+        analysis_results = analyze_peak_data(file.stream, params)
+        
+        # プロットの生成
+        img_b64 = plot_angular_velocity_with_peaks(
+            analysis_results["df"],
+            config.TIME_COL,
+            'angular_velocity_filtered',
+            analysis_results["peak_indices"]
+        )
+        
+        # レスポンスの構築
+        return jsonify({
+            "image": img_b64,
+            "peaks": analysis_results["peaks"],
+            "peak_count": analysis_results["peak_count"],
+            "peak_averages": analysis_results["peak_averages"]
+        })
+        
+    except Exception as e:
+        return handle_error(e, "Peak")
 
-# --- 2. マン・ホイットニーU検定用エンドポイント (変更なし) ---
+
 @app.route('/analyze-mann-whitney', methods=['POST'])
 def analyze_endpoint_mw():
+    """
+    マン・ホイットニーU検定エンドポイント
+    対応のない2群間のノンパラメトリック検定を実行
+    """
     try:
+        # データの取得とパース
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
-        alternative = request.form.get('alternative', 'two-sided')
+        alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
         
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
         
+        # データの検証
         if not group1 or not group2:
-             raise ValueError("両方のグループにデータを入力してください。")
+            raise ValueError("両方のグループにデータを入力してください。")
         
-        u_stat, p_value = mannwhitneyu(group1, group2, alternative=alternative)
+        # 検定の実行
+        results = perform_mannwhitney_test(group1, group2, alternative)
         
-        # [新規追加] 効果量rの計算
-        N = len(group1) + len(group2)
-        Z_score, effect_size_r = _calculate_z_and_r_from_p(p_value, N, alternative)
-        
-        return jsonify({
-            "test_name": "マン・ホイットニーU検定", "stat_name": "U値",
-            "stat": u_stat, 
-            "p_value": p_value,
-            "z_approx": Z_score,
-            "effect_size_r": effect_size_r # 効果量
-        })
+        return jsonify(results)
         
     except Exception as e:
-        print(f"分析エラー(MW): {e}")
-        return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
+        return handle_error(e, "Mann-Whitney")
 
-# --- 3. ウィルコクソン検定用エンドポイント (変更なし) ---
+
 @app.route('/analyze-wilcoxon', methods=['POST'])
 def analyze_endpoint_wilcoxon():
+    """
+    ウィルコクソン符号順位検定エンドポイント
+    対応のある2群間のノンパラメトリック検定を実行
+    """
     try:
+        # データの取得とパース
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
-        alternative = request.form.get('alternative', 'two-sided')
-
+        alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
+        
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
-
+        
+        # データの検証
         if not group1 or not group2:
-             raise ValueError("両方のグループにデータを入力してください。")
+            raise ValueError("両方のグループにデータを入力してください。")
         
-        if len(group1) != len(group2):
-            raise ValueError(f"ウィルコクソン検定は対応のあるデータ（同サイズ）が必要です。Group 1: {len(group1)}件, Group 2: {len(group2)}件")
-
-        w_stat, p_value = wilcoxon(group1, group2, alternative=alternative)
+        # 検定の実行
+        results = perform_wilcoxon_test(group1, group2, alternative)
         
-        # [新規追加] 効果量rの計算
-        n_pairs = len(group1) # 有効なペア数 (差が0でないペアはwilcoxon内部で処理される)
-        N_total_obs = n_pairs * 2 # 全観測数
-        Z_score, effect_size_r = _calculate_z_and_r_from_p(p_value, N_total_obs, alternative)
-        
-        return jsonify({
-            "test_name": "ウィルコクソン符号順位検定", "stat_name": "W値",
-            "stat": w_stat, 
-            "p_value": p_value,
-            "z_approx": Z_score,
-            "effect_size_r": effect_size_r # 効果量
-        })
+        return jsonify(results)
         
     except Exception as e:
-        print(f"分析エラー(Wilcoxon): {e}")
-        return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
-    
+        return handle_error(e, "Wilcoxon")
 
-# --- 4. t検定用エンドポイント [修正] ---
+
 @app.route('/analyze-ttest', methods=['POST'])
 def analyze_endpoint_ttest():
+    """
+    t検定エンドポイント
+    対応のない2群間のt検定を実行（正規性・等分散性の検定も含む）
+    """
     try:
+        # データの取得とパース
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
-        alternative = request.form.get('alternative', 'two-sided')
-
+        alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
+        
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
-
+        
+        # データの検証
         if not group1 or not group2:
-             raise ValueError("両方のグループにデータを入力してください。")
+            raise ValueError("両方のグループにデータを入力してください。")
         
-        n1, n2 = len(group1), len(group2)
-        mean1, mean2 = np.mean(group1), np.mean(group2)
-        var1 = np.var(group1, ddof=1) if n1 > 1 else 0.0 
-        var2 = np.var(group2, ddof=1) if n2 > 1 else 0.0
-
-        # 正規性の検定
-        shapiro1 = run_shapiro(group1)
-        shapiro2 = run_shapiro(group2)
-        is_normal = (shapiro1['p'] > 0.05 and shapiro2['p'] > 0.05)
+        # 検定の実行
+        results = perform_ttest(group1, group2, alternative)
         
-        message = ""
-        if not is_normal:
-            message = "警告: データが正規分布に従っていないため、t検定の結果は信頼性が低い可能性があります。マン・ホイットニーU検定を推奨します。"
-
-        # 等分散性の検定
-        levene_stat, levene_p = np.nan, np.nan
-        equal_var = True 
-        if n1 > 1 and n2 > 1:
-            levene_stat, levene_p = levene(group1, group2)
-            equal_var = (levene_p > 0.05)
-        
-        # t検定の実施
-        # [修正] オブジェクトとして結果を *1回だけ* 受け取る
-        ttest_result = ttest_ind(group1, group2, equal_var=equal_var, alternative=alternative)
-        
-        # [修正] オブジェクトの属性から t値 と p値 を取得
-        t_statistic_val = float(ttest_result.statistic)
-        p_value = float(ttest_result.pvalue)
-
-        # --- 効果量とdfの計算 ---
-        
-        # 1. 効果量 (Cohen's d) の計算
-        cohen_d = np.nan
-        if n1 > 1 and n2 > 1: 
-            s_pooled = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
-            cohen_d = (mean1 - mean2) / s_pooled if s_pooled > 0 else 0
-        
-        # 2. 自由度 (df) の計算
-        df = np.nan
-        if equal_var:
-            df = n1 + n2 - 2
-        else:
-            if n1 > 1 and n2 > 1: 
-                v1 = var1 / n1
-                v2 = var2 / n2
-                # ゼロ除算を避ける
-                denom_df = (v1**2 / (n1 - 1)) + (v2**2 / (n2 - 1))
-                df = (v1 + v2)**2 / denom_df if denom_df > 0 else (n1 + n2 - 2)
-            else:
-                 df = n1 + n2 - 2
-
-        # 3. 効果量 r (ご指定の式) の計算
-        t_stat = t_statistic_val # t値
-        effect_size_r = np.nan
-        
-        # t_stat と df が有効な数値(nanではない)かチェック
-        if np.isfinite(t_stat) and np.isfinite(df):
-            denominator_sq = (t_stat**2) + df
-            if denominator_sq > 0:
-                denominator = np.sqrt(denominator_sq)
-                effect_size_r = t_stat / denominator
-            elif t_stat == 0:
-                effect_size_r = 0.0
-        
-        # --- ▲ 修正ここまで ▲ ---
-        
-        return jsonify({
-            "test_name": "対応のないt検定","stat_name": "t値",
-            "stat": t_statistic_val, 
-            "p_value": p_value,
-            "df": df, 
-            "effect_size_cohen_d": cohen_d, 
-            "effect_size_r": effect_size_r,
-            "shapiro1": shapiro1, "shapiro2": shapiro2,
-            "normality": bool(is_normal),
-            "levene": {"stat": levene_stat, "p": levene_p},
-            "equal_var": bool(equal_var),
-            "message": message
-        })
+        return jsonify(results)
         
     except Exception as e:
-        print(f"分析エラー(ttest): {e}")
-        return jsonify({"error": f"分析中にエラーが発生しました: {e}"}), 500
+        return handle_error(e, "t-test")
+
 
 if __name__ == '__main__':
     app.run(debug=True)

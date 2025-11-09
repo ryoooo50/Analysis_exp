@@ -10,8 +10,27 @@
             --border-color: #dee2e6; --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             --danger-color: #dc3545; --success-color: #28a745;
         }
-        body { font-family: var(--font-family); background-color: var(--light-gray); color: #333; margin: 0; padding: 2rem; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 900px; }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--light-gray);
+            color: #333;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto 2rem auto;
+        }
+        footer {
+            width: 100%;
+            max-width: 900px;
+        }
         .card { background: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 2rem; margin-bottom: 2rem; }
         h1, h2, h3, h4 { color: #333; }
         h1 { color: var(--primary-color); text-align: center; }
@@ -166,59 +185,13 @@
         </div>
 
         <div class="tab-buttons">
-            <button class="tab-button active" data-tab="tab-peak">ピーク分析</button>
-            <button class="tab-button" data-tab="tab-mw">マン・ホイットニーU検定</button>
+            <button class="tab-button active" data-tab="tab-mw">マン・ホイットニーU検定</button>
             <button class="tab-button" data-tab="tab-wilcoxon">ウィルコクソン順位符号付検定</button>
             <button class="tab-button" data-tab="tab-ttest">t検定</button>
+            <button class="tab-button" data-tab="tab-peak">ピーク分析</button>
         </div>
 
-        <div id="tab-peak" class="tab-content active">
-            <div class="card">
-                <form id="form-peak">
-                    <div id="upload-area-peak" class="upload-area">
-                        <input type="file" id="file-input-peak" accept=".csv">
-                        <p>ここにCSVファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択</p>
-                        <div id="file-name-peak" class="file-name"></div>
-                    </div>
-                    <h3>ピーク検出パラメータ</h3>
-                    <div class="params-grid">
-                        <div class="param-group">
-                            <label for="min_peak_height">最小高さ (rad/s)</label>
-                            <input type="number" id="min_peak_height" value="1.0" step="0.1">
-                        </div>
-                        <div class="param-group">
-                            <label for="max_peak_height">最大高さ (rad/s)</label>
-                            <input type="number" id="max_peak_height" value="100.0" step="0.1">
-                        </div>
-                        <div class="param-group">
-                            <label for="peak_prominence">顕著さ</label>
-                            <input type="number" id="peak_prominence" value="1.0" step="0.1">
-                        </div>
-                        <div class="param-group">
-                            <label for="peak_distance">最小距離 (点)</label>
-                            <input type="number" id="peak_distance" value="50" step="1">
-                        </div>
-                    </div>
-                    <br>
-                    <button type="submit">分析開始</button>
-                </form>
-            </div>
-            <div id="spinner-peak" class="spinner"></div>
-            <div id="results-peak" class="card results">
-                <h2>分析結果 (Peak Analysis)</h2>
-                <div class="result-summary">
-                    <h3>検出されたピーク数</h3>
-                    <div id="peak-count" class="peak-count">0</div>
-                </div>
-                <div id="plot-container"></div>
-                <div class="results-grid">
-                    <div id="averages-container"></div>
-                    <div id="table-container"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="tab-mw" class="tab-content">
+        <div id="tab-mw" class="tab-content active">
             <div class="card">
                 <form id="form-mw">
                     <p>対応のない2群間 (Group 1 vs Group 2) のノンパラメトリック検定を行います。</p>
@@ -391,6 +364,52 @@
                 <div id="result-text-ttest-multiple"></div>
             </div>
         </div>
+
+        <div id="tab-peak" class="tab-content">
+            <div class="card">
+                <form id="form-peak">
+                    <div id="upload-area-peak" class="upload-area">
+                        <input type="file" id="file-input-peak" accept=".csv">
+                        <p>ここにCSVファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択</p>
+                        <div id="file-name-peak" class="file-name"></div>
+                    </div>
+                    <h3>ピーク検出パラメータ</h3>
+                    <div class="params-grid">
+                        <div class="param-group">
+                            <label for="min_peak_height">最小高さ (rad/s)</label>
+                            <input type="number" id="min_peak_height" value="1.0" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label for="max_peak_height">最大高さ (rad/s)</label>
+                            <input type="number" id="max_peak_height" value="100.0" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label for="peak_prominence">顕著さ</label>
+                            <input type="number" id="peak_prominence" value="1.0" step="0.1">
+                        </div>
+                        <div class="param-group">
+                            <label for="peak_distance">最小距離 (点)</label>
+                            <input type="number" id="peak_distance" value="50" step="1">
+                        </div>
+                    </div>
+                    <br>
+                    <button type="submit">分析開始</button>
+                </form>
+            </div>
+            <div id="spinner-peak" class="spinner"></div>
+            <div id="results-peak" class="card results">
+                <h2>分析結果 (Peak Analysis)</h2>
+                <div class="result-summary">
+                    <h3>検出されたピーク数</h3>
+                    <div id="peak-count" class="peak-count">0</div>
+                </div>
+                <div id="plot-container"></div>
+                <div class="results-grid">
+                    <div id="averages-container"></div>
+                    <div id="table-container"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <footer class="legal-notice">
@@ -404,7 +423,7 @@
             <li>機密性の高いデータを扱う場合は、事前に十分な確認と安全管理を行ってください。</li>
         </ul>
         <p>
-            Flask, Pandas, NumPy, SciPy, Matplotlib, Seaborn などの OSS ライブラリは、各プロジェクトのライセンス（MIT / BSD 等）に従って利用しています。詳細は <code>requirements.txt</code> を参照してください。
+            Flask, Pandas, NumPy, SciPy, Matplotlib, Seaborn などの OSS ライブラリは、各プロジェクトのライセンス（MIT / BSD 等）に従って利用しています。
         </p>
     </footer>
 

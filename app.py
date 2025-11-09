@@ -11,7 +11,8 @@ from utils.plotting import plot_angular_velocity_with_peaks
 from utils.statistical_tests import (
     perform_mannwhitney_test,
     perform_wilcoxon_test,
-    perform_ttest
+    perform_ttest,
+    apply_holm_correction,
 )
 import config
 
@@ -58,6 +59,66 @@ def extract_peak_params(request_form) -> Dict[str, Any]:
             request_form.get('peak_distance', config.DEFAULT_PEAK_PARAMS['peak_distance'])
         ),
     }
+
+
+def _parse_input_dataset(raw_data: Any, field_name: str) -> list:
+    """
+    JSONペイロードから受け取ったデータを数値リストに変換
+
+    Args:
+        raw_data: 文字列（カンマ区切り）または数値リスト
+        field_name: フィールド名（エラーメッセージ用）
+
+    Returns:
+        数値リスト
+
+    Raises:
+        ValueError: データ変換に失敗した場合
+    """
+    if raw_data is None:
+        raise ValueError(f"'{field_name}' にデータがありません。")
+
+    if isinstance(raw_data, (list, tuple)):
+        converted = []
+        for idx, item in enumerate(raw_data):
+            try:
+                converted.append(float(item))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"'{field_name}' の値を数値に変換できません (index {idx}): {item}"
+                ) from exc
+        if not converted:
+            raise ValueError(f"'{field_name}' が空です。")
+        return converted
+
+    if isinstance(raw_data, str):
+        values = parse_text_data(raw_data)
+        if not values:
+            raise ValueError(f"'{field_name}' が空です。")
+        return values
+
+    raise ValueError(f"'{field_name}' の形式が不正です。文字列または数値リストを指定してください。")
+
+
+def _parse_alpha_value(raw_alpha: Any) -> float:
+    """
+    フロントエンドから渡された有意水準を安全に数値へ変換
+
+    Args:
+        raw_alpha: 変換対象の値
+
+    Returns:
+        0 < alpha <= 1 の範囲に正規化された有意水準
+    """
+    try:
+        alpha = float(raw_alpha)
+    except (TypeError, ValueError):
+        return config.SIGNIFICANCE_LEVEL
+
+    if alpha <= 0 or alpha > 1:
+        return config.SIGNIFICANCE_LEVEL
+
+    return alpha
 
 
 @app.route('/')
@@ -118,6 +179,9 @@ def analyze_endpoint_mw():
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
         alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
+        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
+        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
+        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
         
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
@@ -128,6 +192,8 @@ def analyze_endpoint_mw():
         
         # 検定の実行
         results = perform_mannwhitney_test(group1, group2, alternative)
+        results['alpha'] = alpha
+        results['significant'] = bool(results['p_value'] <= alpha)
         
         return jsonify(results)
         
@@ -146,6 +212,7 @@ def analyze_endpoint_wilcoxon():
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
         alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
+        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
         
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
@@ -156,6 +223,8 @@ def analyze_endpoint_wilcoxon():
         
         # 検定の実行
         results = perform_wilcoxon_test(group1, group2, alternative)
+        results['alpha'] = alpha
+        results['significant'] = bool(results['p_value'] <= alpha)
         
         return jsonify(results)
         
@@ -184,11 +253,115 @@ def analyze_endpoint_ttest():
         
         # 検定の実行
         results = perform_ttest(group1, group2, alternative)
+        results['alpha'] = alpha
+        results['significant'] = bool(results['p_value'] <= alpha)
         
         return jsonify(results)
         
     except Exception as e:
         return handle_error(e, "t-test")
+
+
+@app.route('/analyze-multiple-tests', methods=['POST'])
+def analyze_multiple_tests():
+    """
+    複数の検定をまとめて実行し、Holm補正を適用するエンドポイント
+
+    期待するJSON形式:
+    {
+        "tests": [
+            {
+                "type": "mann_whitney" | "wilcoxon" | "ttest",
+                "data1": "...",  # 文字列(カンマ区切り)または数値リスト
+                "data2": "...",  # 同上
+                "alternative": "two-sided" | "less" | "greater"
+            },
+            ...
+        ],
+        "alpha": 0.05
+    }
+    """
+    payload = request.get_json(silent=True)
+    if not payload or 'tests' not in payload:
+        return jsonify({"error": "JSONボディに 'tests' フィールドが必要です。"}), 400
+
+    tests_config = payload.get('tests', [])
+    if not isinstance(tests_config, list) or not tests_config:
+        return jsonify({"error": "'tests' は1件以上の要素を持つリストで指定してください。"}), 400
+
+    alpha = _parse_alpha_value(payload.get('alpha', config.SIGNIFICANCE_LEVEL))
+
+    dispatch_map = {
+        'mann_whitney': perform_mannwhitney_test,
+        'wilcoxon': perform_wilcoxon_test,
+        'ttest': perform_ttest,
+    }
+
+    aggregated_results = []
+    successful_indices = []
+    p_values = []
+
+    for idx, test_cfg in enumerate(tests_config):
+        if not isinstance(test_cfg, dict):
+            aggregated_results.append({
+                "index": idx,
+                "success": False,
+                "error": "各テスト設定はオブジェクトで指定してください。"
+            })
+            continue
+
+        test_type = test_cfg.get('type')
+        if test_type not in dispatch_map:
+            aggregated_results.append({
+                "index": idx,
+                "success": False,
+                "error": f"未知の検定タイプです: {test_type}"
+            })
+            continue
+
+        try:
+            group1 = _parse_input_dataset(test_cfg.get('data1'), 'data1')
+            group2 = _parse_input_dataset(test_cfg.get('data2'), 'data2')
+            alternative = test_cfg.get('alternative', config.DEFAULT_ALTERNATIVE)
+
+            result = dispatch_map[test_type](group1, group2, alternative)
+            result['alpha'] = alpha
+            result['significant'] = bool(result['p_value'] <= alpha)
+
+            aggregated_results.append({
+                "index": idx,
+                "type": test_type,
+                "success": True,
+                "result": result
+            })
+            successful_indices.append(len(aggregated_results) - 1)
+            p_values.append(result['p_value'])
+
+        except Exception as exc:
+            aggregated_results.append({
+                "index": idx,
+                "type": test_type,
+                "success": False,
+                "error": str(exc)
+            })
+
+    correction_summary = None
+    if p_values:
+        correction_summary = apply_holm_correction(p_values, alpha)
+        adjusted_p_values = correction_summary["adjusted_p_values"]
+        significance_flags = correction_summary["significant"]
+
+        for result_index, adj_p, is_sig in zip(successful_indices, adjusted_p_values, significance_flags):
+            aggregated_results[result_index]["result"]["adjusted_p_value"] = adj_p
+            aggregated_results[result_index]["result"]["significant_after_correction"] = bool(is_sig)
+
+    response_payload = {
+        "alpha": alpha,
+        "correction": correction_summary,
+        "tests": aggregated_results
+    }
+
+    return jsonify(response_payload)
 
 
 if __name__ == '__main__':

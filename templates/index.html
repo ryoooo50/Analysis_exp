@@ -79,6 +79,58 @@
             font-weight: bold;
             font-size: 1.1rem;
         }
+        .muted {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+        .toggle-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+        .multiple-settings {
+            display: none;
+            margin-top: 1.5rem;
+        }
+        .btn-secondary {
+            padding: 0.5rem 1rem;
+            background-color: var(--border-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-secondary:hover {
+            background-color: #e2e6ea;
+        }
+        .multiple-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .multiple-buttons {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .multiple-form-list {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .multiple-form-block {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            background: #fff;
+        }
+        .multiple-form-block h5 {
+            margin: 0 0 0.5rem 0;
+            color: var(--primary-color);
+        }
     </style>
 </head>
 <body>
@@ -164,14 +216,38 @@
                             <option value="greater">片側検定 (Group 1 > Group 2)</option>
                         </select>
                     </div>
+                    <div class="param-group">
+                        <label for="mw-alpha">有意水準 (α)</label>
+                        <input type="number" id="mw-alpha" step="0.001" min="0" max="1" value="0.05">
+                    </div>
                     <br>
                     <button type="submit">検定開始</button>
+                    <div class="multiple-section">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="mw-multiple-enable">
+                            Holm法による多重検定を実行する
+                        </label>
+                        <div id="mw-multiple-controls" class="multiple-settings">
+                            <div class="params-grid">
+                                <div class="param-group">
+                                    <label for="mw-multiple-count">多重度 (検定回数)</label>
+                                    <input type="number" id="mw-multiple-count" step="1" min="1" value="1">
+                                </div>
+                            </div>
+                            <div class="multiple-buttons">
+                                <button type="button" id="mw-multiple-copy" class="btn-secondary">現在の入力を1件目にコピー</button>
+                                <button type="button" id="mw-multiple-run">Holm補正を実行</button>
+                            </div>
+                            <div id="mw-multiple-form-container" class="multiple-form-list"></div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div id="spinner-mw" class="spinner"></div>
             <div id="results-mw" class="card results">
                 <h2>検定結果 (Mann-Whitney U Test)</h2>
                 <div id="result-text-mw"></div>
+                <div id="result-text-mw-multiple"></div>
             </div>
         </div>
 
@@ -198,14 +274,38 @@
                             <option value="greater">片側検定 (Group 1 > Group 2)</option>
                         </select>
                     </div>
+                    <div class="param-group">
+                        <label for="wilcoxon-alpha">有意水準 (α)</label>
+                        <input type="number" id="wilcoxon-alpha" step="0.001" min="0" max="1" value="0.05">
+                    </div>
                     <br>
                     <button type="submit">検定開始</button>
+                    <div class="multiple-section">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="wilcoxon-multiple-enable">
+                            Holm法による多重検定を実行する
+                        </label>
+                        <div id="wilcoxon-multiple-controls" class="multiple-settings">
+                            <div class="params-grid">
+                                <div class="param-group">
+                                    <label for="wilcoxon-multiple-count">多重度 (検定回数)</label>
+                                    <input type="number" id="wilcoxon-multiple-count" step="1" min="1" value="1">
+                                </div>
+                            </div>
+                            <div class="multiple-buttons">
+                                <button type="button" id="wilcoxon-multiple-copy" class="btn-secondary">現在の入力を1件目にコピー</button>
+                                <button type="button" id="wilcoxon-multiple-run">Holm補正を実行</button>
+                            </div>
+                            <div id="wilcoxon-multiple-form-container" class="multiple-form-list"></div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div id="spinner-wilcoxon" class="spinner"></div>
             <div id="results-wilcoxon" class="card results">
                 <h2>検定結果 (Wilcoxon Signed-Rank Test)</h2>
                 <div id="result-text-wilcoxon"></div>
+                <div id="result-text-wilcoxon-multiple"></div>
             </div>
         </div>
 
@@ -232,14 +332,38 @@
                             <option value="greater">片側検定 (Group 1 > Group 2)</option>
                         </select>
                     </div>
+                    <div class="param-group">
+                        <label for="ttest-alpha">有意水準 (α)</label>
+                        <input type="number" id="ttest-alpha" step="0.001" min="0" max="1" value="0.05">
+                    </div>
                     <br>
                     <button type="submit">検定開始</button>
+                    <div class="multiple-section">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="ttest-multiple-enable">
+                            Holm法による多重検定を実行する
+                        </label>
+                        <div id="ttest-multiple-controls" class="multiple-settings">
+                            <div class="params-grid">
+                                <div class="param-group">
+                                    <label for="ttest-multiple-count">多重度 (検定回数)</label>
+                                    <input type="number" id="ttest-multiple-count" step="1" min="1" value="1">
+                                </div>
+                            </div>
+                            <div class="multiple-buttons">
+                                <button type="button" id="ttest-multiple-copy" class="btn-secondary">現在の入力を1件目にコピー</button>
+                                <button type="button" id="ttest-multiple-run">Holm補正を実行</button>
+                            </div>
+                            <div id="ttest-multiple-form-container" class="multiple-form-list"></div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div id="spinner-ttest" class="spinner"></div>
             <div id="results-ttest" class="card results">
                 <h2>検定結果 (t-test)</h2>
                 <div id="result-text-ttest"></div>
+                <div id="result-text-ttest-multiple"></div>
             </div>
         </div>
     </div>
@@ -260,6 +384,13 @@
             }
             // その他の無効な値 (undefined, null, NaN, Infinity, -Infinity)
             return "N/A";
+        }
+
+        function renderSignificanceMessage(alpha, isSignificant) {
+            const alphaText = `α=${formatNumber(alpha, 3)}`;
+            return isSignificant
+                ? `<p class="significant">${alphaText}で統計的に有意な差が見られます。</p>`
+                : `<p class="not-significant">${alphaText}で統計的に有意な差は見られません。</p>`;
         }
 
         // --- タブ切り替えロジック (変更なし) ---
@@ -363,6 +494,7 @@
         const spinnerMw = document.getElementById('spinner-mw');
         const resultsMw = document.getElementById('results-mw');
         const resultTextMw = document.getElementById('result-text-mw');
+        const alphaMwInput = document.getElementById('mw-alpha');
 
         formMw.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -376,18 +508,24 @@
             formData.append('data1', data1);
             formData.append('data2', data2);
             formData.append('alternative', document.getElementById('mw-alternative').value);
+            formData.append('alpha', alphaMwInput ? alphaMwInput.value || '0.05' : '0.05');
 
             try {
                 const response = await fetch('/analyze-mann-whitney', { method: 'POST', body: formData });
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
 
-                // [修正] 効果量rなどを表示するように変更
+                const alphaVal = typeof results.alpha === 'number' ? results.alpha : parseFloat(alphaMwInput?.value || '0.05') || 0.05;
+                const isSignificant = typeof results.significant === 'boolean'
+                    ? results.significant
+                    : (typeof results.p_value === 'number' ? results.p_value <= alphaVal : false);
+
                 resultTextMw.innerHTML = `
                     <div class="test-result-block">
                         <h4>${results.test_name}</h4>
                         <p>統計量 (${results.stat_name}): <b>${formatNumber(results.stat, 3)}</b></p>
                         <p>P値 (p-value): <b>${formatNumber(results.p_value, 5)}</b></p>
+                        <p>有意水準 (α): <b>${formatNumber(alphaVal, 3)}</b></p>
                     </div>
                     <div class="test-result-block">
                         <h4>効果量 (Effect Size)</h4>
@@ -395,10 +533,7 @@
                         <p>効果量 r (r = Z/sqrt(N)): <b>${formatNumber(results.effect_size_r, 3)}</b></p>
                     </div>
                     <hr>
-                    ${results.p_value < 0.05 ? 
-                        '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
-                        '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
-                    }
+                    ${renderSignificanceMessage(alphaVal, isSignificant)}
                 `;
                 resultsMw.style.display = 'block';
             } catch (error) {
@@ -413,6 +548,7 @@
         const spinnerWilcoxon = document.getElementById('spinner-wilcoxon');
         const resultsWilcoxon = document.getElementById('results-wilcoxon');
         const resultTextWilcoxon = document.getElementById('result-text-wilcoxon');
+        const alphaWilcoxonInput = document.getElementById('wilcoxon-alpha');
 
         formWilcoxon.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -426,18 +562,24 @@
             formData.append('data1', data1);
             formData.append('data2', data2);
             formData.append('alternative', document.getElementById('wilcoxon-alternative').value);
+            formData.append('alpha', alphaWilcoxonInput ? alphaWilcoxonInput.value || '0.05' : '0.05');
 
             try {
                 const response = await fetch('/analyze-wilcoxon', { method: 'POST', body: formData });
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
 
-                // [修正] 効果量rなどを表示するように変更
+                const alphaVal = typeof results.alpha === 'number' ? results.alpha : parseFloat(alphaWilcoxonInput?.value || '0.05') || 0.05;
+                const isSignificant = typeof results.significant === 'boolean'
+                    ? results.significant
+                    : (typeof results.p_value === 'number' ? results.p_value <= alphaVal : false);
+
                 resultTextWilcoxon.innerHTML = `
                     <div class="test-result-block">
                         <h4>${results.test_name}</h4>
                         <p>統計量 (${results.stat_name}): <b>${formatNumber(results.stat, 3)}</b></p>
                         <p>P値 (p-value): <b>${formatNumber(results.p_value, 5)}</b></p>
+                        <p>有意水準 (α): <b>${formatNumber(alphaVal, 3)}</b></p>
                     </div>
                     <div class="test-result-block">
                         <h4>効果量 (Effect Size)</h4>
@@ -445,10 +587,7 @@
                         <p>効果量 r (r = Z/sqrt(N)): <b>${formatNumber(results.effect_size_r, 3)}</b></p>
                     </div>
                     <hr>
-                    ${results.p_value < 0.05 ? 
-                        '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
-                        '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
-                    }
+                    ${renderSignificanceMessage(alphaVal, isSignificant)}
                 `;
                 resultsWilcoxon.style.display = 'block';
             } catch (error) {
@@ -463,9 +602,17 @@
         const spinnerTTest = document.getElementById('spinner-ttest');
         const resultsTTest = document.getElementById('results-ttest');
         const resultTextTTest = document.getElementById('result-text-ttest');
+        const alphaTTestInput = document.getElementById('ttest-alpha');
 
         // [修正] t検定の結果表示関数を、効果量r, d, df を表示するように書き換え
         function displayTestResult(resultsContainer, resultTextElement, results) {
+            const alphaVal = typeof results.alpha === 'number'
+                ? results.alpha
+                : parseFloat(alphaTTestInput?.value || '0.05') || 0.05;
+            const isSignificant = typeof results.significant === 'boolean'
+                ? results.significant
+                : (typeof results.p_value === 'number' ? results.p_value <= alphaVal : false);
+
             let html = `
                 <div class="test-result-block">
                     <h4>正規性の検定 (Shapiro-Wilk)</h4>
@@ -491,6 +638,7 @@
                     <p>統計量 (${results.stat_name}): <b>${formatNumber(results.stat, 4)}</b></p>
                     <p>自由度 (df): <b>${formatNumber(results.df, 2)}</b></p>
                     <p>P値 (p-value): <b>${formatNumber(results.p_value, 5)}</b></p>
+                    <p>有意水準 (α): <b>${formatNumber(alphaVal, 3)}</b></p>
                 </div>
             `;
 
@@ -506,10 +654,7 @@
             // 最終結論
             html += `
                 <hr>
-                ${results.p_value < 0.05 ? 
-                    '<p class="significant">α=0.05で統計的に有意な差が見られます。</p>' : 
-                    '<p class="not-significant">α=0.05で統計的に有意な差は見られません。</p>'
-                }
+                ${renderSignificanceMessage(alphaVal, isSignificant)}
                 ${results.message ? `<p><small><i>${results.message}</i></small></p>` : ''}
             `;
             
@@ -529,6 +674,7 @@
             formData.append('data1', data1);
             formData.append('data2', data2);
             formData.append('alternative', document.getElementById('ttest-alternative').value);
+            formData.set('alpha', alphaTTestInput ? alphaTTestInput.value || '0.05' : '0.05');
 
             try {
                 const response = await fetch('/analyze-ttest', { method: 'POST', body: formData });
@@ -543,6 +689,306 @@
             } finally {
                 spinnerTTest.style.display = 'none';
             }
+        });
+
+        function setupMultipleTestManager({
+            testType,
+            enableCheckboxId,
+            controlsId,
+            baseAlphaInputId,
+            countInputId,
+            formsContainerId,
+            copyButtonId,
+            runButtonId,
+            resultContainerId,
+            data1FieldId,
+            data2FieldId,
+            alternativeFieldId,
+            spinnerElement,
+            resultsCardElement
+        }) {
+            const enableCheckbox = document.getElementById(enableCheckboxId);
+            const controls = document.getElementById(controlsId);
+            const baseAlphaInput = document.getElementById(baseAlphaInputId);
+            const countInput = document.getElementById(countInputId);
+            const formsContainer = document.getElementById(formsContainerId);
+            const copyButton = document.getElementById(copyButtonId);
+            const runButton = document.getElementById(runButtonId);
+            const resultContainer = document.getElementById(resultContainerId);
+            const baseData1Field = document.getElementById(data1FieldId);
+            const baseData2Field = document.getElementById(data2FieldId);
+            const baseAlternativeField = alternativeFieldId ? document.getElementById(alternativeFieldId) : null;
+
+            if (!enableCheckbox || !controls || !baseAlphaInput || !countInput || !formsContainer || !copyButton || !runButton || !resultContainer || !baseData1Field || !baseData2Field) {
+                return;
+            }
+
+            const altOptionsHTML = baseAlternativeField ? baseAlternativeField.innerHTML : '';
+            const defaultAlternative = baseAlternativeField ? baseAlternativeField.value : 'two-sided';
+
+            const getCount = () => {
+                const value = parseInt(countInput.value, 10);
+                return Number.isNaN(value) || value < 1 ? 1 : value;
+            };
+
+            function createFormBlock(index) {
+                const block = document.createElement('div');
+                block.className = 'multiple-form-block';
+                block.innerHTML = `<h5>テスト ${index + 1}</h5>`;
+
+                const group1 = document.createElement('div');
+                group1.className = 'param-group';
+                const label1 = document.createElement('label');
+                const textarea1 = document.createElement('textarea');
+                label1.setAttribute('for', `${formsContainerId}-data1-${index}`);
+                label1.textContent = 'Group 1 データ';
+                textarea1.id = `${formsContainerId}-data1-${index}`;
+                textarea1.rows = 3;
+                textarea1.placeholder = '4.1, 4.4, 4.2, ...';
+                group1.appendChild(label1);
+                group1.appendChild(textarea1);
+
+                const group2 = document.createElement('div');
+                group2.className = 'param-group';
+                const label2 = document.createElement('label');
+                const textarea2 = document.createElement('textarea');
+                label2.setAttribute('for', `${formsContainerId}-data2-${index}`);
+                label2.textContent = 'Group 2 データ';
+                textarea2.id = `${formsContainerId}-data2-${index}`;
+                textarea2.rows = 3;
+                textarea2.placeholder = '3.5, 3.4, 3.2, ...';
+                group2.appendChild(label2);
+                group2.appendChild(textarea2);
+
+                block.appendChild(group1);
+                block.appendChild(group2);
+
+                if (baseAlternativeField) {
+                    const altGroup = document.createElement('div');
+                    altGroup.className = 'param-group';
+                    const altLabel = document.createElement('label');
+                    const altSelect = document.createElement('select');
+                    altLabel.setAttribute('for', `${formsContainerId}-alternative-${index}`);
+                    altLabel.textContent = '仮説';
+                    altSelect.id = `${formsContainerId}-alternative-${index}`;
+                    altSelect.innerHTML = altOptionsHTML;
+                    altSelect.value = defaultAlternative;
+                    altGroup.appendChild(altLabel);
+                    altGroup.appendChild(altSelect);
+                    block.appendChild(altGroup);
+                }
+
+                return block;
+            }
+
+            function buildForms() {
+                const count = getCount();
+                formsContainer.innerHTML = '';
+                for (let i = 0; i < count; i += 1) {
+                    formsContainer.appendChild(createFormBlock(i));
+                }
+            }
+
+            function resetMultipleState() {
+                formsContainer.innerHTML = '';
+                resultContainer.innerHTML = '';
+            }
+
+            enableCheckbox.addEventListener('change', () => {
+                const enabled = enableCheckbox.checked;
+                controls.style.display = enabled ? 'block' : 'none';
+                if (enabled) {
+                    resultContainer.innerHTML = '';
+                    buildForms();
+                } else {
+                    resetMultipleState();
+                }
+            });
+
+            countInput.addEventListener('change', () => {
+                countInput.value = getCount();
+                if (enableCheckbox.checked) {
+                    buildForms();
+                }
+            });
+
+            copyButton.addEventListener('click', () => {
+                if (!enableCheckbox.checked) {
+                    alert('多重検定を有効にしてください。');
+                    return;
+                }
+                const count = getCount();
+                for (let i = 0; i < count; i += 1) {
+                    const data1Elem = document.getElementById(`${formsContainerId}-data1-${i}`);
+                    const data2Elem = document.getElementById(`${formsContainerId}-data2-${i}`);
+                    const altElem = document.getElementById(`${formsContainerId}-alternative-${i}`);
+                    if (data1Elem) data1Elem.value = baseData1Field.value;
+                    if (data2Elem) data2Elem.value = baseData2Field.value;
+                    if (altElem && baseAlternativeField) altElem.value = baseAlternativeField.value;
+                }
+            });
+
+            runButton.addEventListener('click', async () => {
+                if (!enableCheckbox.checked) {
+                    alert('多重検定を有効にしてください。');
+                    return;
+                }
+
+                const alpha = parseFloat(baseAlphaInput.value);
+                if (Number.isNaN(alpha) || alpha <= 0 || alpha > 1) {
+                    alert('有意水準 (α) には 0 より大きく 1 以下の数値を入力してください。');
+                    return;
+                }
+
+                const count = getCount();
+                const tests = [];
+
+                for (let i = 0; i < count; i += 1) {
+                    const data1Elem = document.getElementById(`${formsContainerId}-data1-${i}`);
+                    const data2Elem = document.getElementById(`${formsContainerId}-data2-${i}`);
+                    const altElem = document.getElementById(`${formsContainerId}-alternative-${i}`);
+
+                    if (!data1Elem || !data2Elem) {
+                        alert('多重検定フォームの構成に問題があります。ページを再読み込みしてください。');
+                        return;
+                    }
+
+                    const data1 = data1Elem.value.trim();
+                    const data2 = data2Elem.value.trim();
+                    if (!data1 || !data2) {
+                        alert(`テスト #${i + 1} のデータを入力してください。`);
+                        return;
+                    }
+
+                    tests.push({
+                        type: testType,
+                        data1,
+                        data2,
+                        alternative: altElem ? altElem.value : 'two-sided'
+                    });
+                }
+
+                spinnerElement.style.display = 'block';
+                resultContainer.innerHTML = '';
+
+                try {
+                    const response = await fetch('/analyze-multiple-tests', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tests, alpha })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'サーバーエラー');
+                    }
+
+                    let html = '';
+                    if (data.correction) {
+                        html += `
+                            <div class="test-result-block">
+                                <h4>Holm-Bonferroni 補正概要</h4>
+                                <p>補正方法: <b>${data.correction.method}</b></p>
+                                <p>有意水準 (α): <b>${formatNumber(data.correction.alpha, 3)}</b></p>
+                            </div>
+                        `;
+                    }
+
+                    if (Array.isArray(data.tests)) {
+                        data.tests.forEach((entry, idx) => {
+                            const baseAlpha = typeof entry.result?.alpha === 'number' ? entry.result.alpha : alpha;
+                            const baseSignificant = typeof entry.result?.significant === 'boolean'
+                                ? entry.result.significant
+                                : (typeof entry.result?.p_value === 'number' ? entry.result.p_value <= baseAlpha : false);
+
+                            html += `
+                                <div class="test-result-block">
+                                    <h4>テスト #${idx + 1}</h4>
+                                    <p>結果: ${entry.success ? '<span class="significant">成功</span>' : '<span class="not-significant">失敗</span>'}</p>
+                            `;
+                            if (entry.success && entry.result) {
+                                html += `
+                                    <p>統計量 (${entry.result.stat_name || 'stat'}): <b>${formatNumber(entry.result.stat, 4)}</b></p>
+                                    <p>p値: <b>${formatNumber(entry.result.p_value, 5)}</b></p>
+                                    <p>有意水準 (α): <b>${formatNumber(baseAlpha, 3)}</b></p>
+                                    ${renderSignificanceMessage(baseAlpha, baseSignificant)}
+                                `;
+                                if (entry.result.adjusted_p_value !== undefined) {
+                                    html += `<p>Holm補正後 p値: <b>${formatNumber(entry.result.adjusted_p_value, 5)}</b></p>`;
+                                }
+                                if (entry.result.significant_after_correction !== undefined) {
+                                    html += `<p>Holm補正後の有意性: <b>${entry.result.significant_after_correction ? '有意 (True)' : '非有意 (False)'}</b></p>`;
+                                }
+                            } else if (!entry.success) {
+                                html += `<p>エラー: ${entry.error || '不明なエラー'}</p>`;
+                            }
+                            html += '</div>';
+                        });
+                    }
+
+                    resultContainer.innerHTML = html || '<p class="muted">有効な結果が返されませんでした。</p>';
+                    resultsCardElement.style.display = 'block';
+                } catch (error) {
+                    alert(`エラー: ${error.message}`);
+                } finally {
+                    spinnerElement.style.display = 'none';
+                }
+            });
+
+            if (enableCheckbox.checked) {
+                controls.style.display = 'block';
+                buildForms();
+            }
+        }
+
+        setupMultipleTestManager({
+            testType: 'mann_whitney',
+            enableCheckboxId: 'mw-multiple-enable',
+            controlsId: 'mw-multiple-controls',
+            baseAlphaInputId: 'mw-alpha',
+            countInputId: 'mw-multiple-count',
+            formsContainerId: 'mw-multiple-form-container',
+            copyButtonId: 'mw-multiple-copy',
+            runButtonId: 'mw-multiple-run',
+            resultContainerId: 'result-text-mw-multiple',
+            data1FieldId: 'mw-data1',
+            data2FieldId: 'mw-data2',
+            alternativeFieldId: 'mw-alternative',
+            spinnerElement: spinnerMw,
+            resultsCardElement: resultsMw
+        });
+
+        setupMultipleTestManager({
+            testType: 'wilcoxon',
+            enableCheckboxId: 'wilcoxon-multiple-enable',
+            controlsId: 'wilcoxon-multiple-controls',
+            baseAlphaInputId: 'wilcoxon-alpha',
+            countInputId: 'wilcoxon-multiple-count',
+            formsContainerId: 'wilcoxon-multiple-form-container',
+            copyButtonId: 'wilcoxon-multiple-copy',
+            runButtonId: 'wilcoxon-multiple-run',
+            resultContainerId: 'result-text-wilcoxon-multiple',
+            data1FieldId: 'wilcoxon-data1',
+            data2FieldId: 'wilcoxon-data2',
+            alternativeFieldId: 'wilcoxon-alternative',
+            spinnerElement: spinnerWilcoxon,
+            resultsCardElement: resultsWilcoxon
+        });
+
+        setupMultipleTestManager({
+            testType: 'ttest',
+            enableCheckboxId: 'ttest-multiple-enable',
+            controlsId: 'ttest-multiple-controls',
+            baseAlphaInputId: 'ttest-alpha',
+            countInputId: 'ttest-multiple-count',
+            formsContainerId: 'ttest-multiple-form-container',
+            copyButtonId: 'ttest-multiple-copy',
+            runButtonId: 'ttest-multiple-run',
+            resultContainerId: 'result-text-ttest-multiple',
+            data1FieldId: 'ttest-data1',
+            data2FieldId: 'ttest-data2',
+            alternativeFieldId: 'ttest-alternative',
+            spinnerElement: spinnerTTest,
+            resultsCardElement: resultsTTest
         });
     </script>
 </body>

@@ -2,7 +2,7 @@
 統計検定関連の関数
 """
 import numpy as np
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Sequence, List
 from scipy.stats import mannwhitneyu, wilcoxon, ttest_ind, shapiro, levene, norm
 
 
@@ -50,6 +50,75 @@ def calculate_z_and_r_from_p(p_value: float, N: int, alternative: str) -> Tuple[
         effect_size_r = np.nan
     
     return Z_score, effect_size_r
+
+
+def apply_holm_correction(
+    p_values: Sequence[float],
+    alpha: float = 0.05
+) -> Dict[str, Any]:
+    """
+    ホルム法 (Holm-Bonferroni) による多重比較補正を適用する
+
+    Args:
+        p_values: 補正対象の p値一覧
+        alpha: 有意水準
+
+    Returns:
+        {
+            "method": "Holm-Bonferroni",
+            "alpha": 指定された有意水準,
+            "adjusted_p_values": 元の順序に対応した補正後p値のリスト,
+            "significant": 補正後に有意 (adjusted_p <= alpha) かどうかの真偽リスト
+        }
+
+    Raises:
+        ValueError: p値リストが空、または不正な値を含む場合
+    """
+    if not p_values:
+        raise ValueError("Holm補正を適用するには1件以上のp値が必要です。")
+
+    # 検証: 0 <= p <= 1 かつ有限
+    validated: List[float] = []
+    for idx, p_val in enumerate(p_values):
+        if p_val is None:
+            raise ValueError(f"p値リストにNoneが含まれています (index {idx})。")
+        try:
+            p_float = float(p_val)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"p値リストに数値へ変換できない値が含まれています (index {idx}): {p_val}") from exc
+
+        if not np.isfinite(p_float) or p_float < 0 or p_float > 1:
+            raise ValueError(f"p値は0〜1の範囲で有限である必要があります (index {idx}): {p_float}")
+
+        validated.append(p_float)
+
+    m = len(validated)
+    indexed_p = list(enumerate(validated))
+    # p値を昇順にソートし、Holm補正を適用
+    sorted_pairs = sorted(indexed_p, key=lambda x: x[1])
+
+    adjusted_sorted: List[float] = []
+    for i, (_, p_val) in enumerate(sorted_pairs):
+        adjusted = min(1.0, (m - i) * p_val)
+        adjusted_sorted.append(adjusted)
+
+    # Holm法では単調性を保つため累積最大値を計算
+    for i in range(1, m):
+        adjusted_sorted[i] = max(adjusted_sorted[i], adjusted_sorted[i - 1])
+
+    # 元の順序に戻す
+    adjusted_p_values = [0.0] * m
+    for sorted_index, (original_index, _) in enumerate(sorted_pairs):
+        adjusted_p_values[original_index] = adjusted_sorted[sorted_index]
+
+    significant = [adj_p <= alpha for adj_p in adjusted_p_values]
+
+    return {
+        "method": "Holm-Bonferroni",
+        "alpha": alpha,
+        "adjusted_p_values": adjusted_p_values,
+        "significant": significant,
+    }
 
 
 def perform_mannwhitney_test(
@@ -217,4 +286,7 @@ def perform_ttest(
         "equal_var": bool(equal_var),
         "message": message
     }
+
+
+
 

@@ -27,3 +27,6 @@ SIGNIFICANCE_LEVEL = 0.05
 # ピーク平均のグループサイズ
 PEAK_GROUP_SIZE = 10
 
+
+
+

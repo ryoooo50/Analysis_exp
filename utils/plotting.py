@@ -62,3 +62,5 @@ def plot_angular_velocity_with_peaks(
     
     return img_b64
 
+
+

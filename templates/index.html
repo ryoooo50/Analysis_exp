@@ -131,6 +131,31 @@
             margin: 0 0 0.5rem 0;
             color: var(--primary-color);
         }
+        footer {
+            margin-top: 3rem;
+            padding: 1.5rem;
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        footer h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        .legal-notice p,
+        .legal-notice ul {
+            font-size: 0.9rem;
+            color: var(--gray);
+            line-height: 1.6;
+        }
+        .legal-notice ul {
+            padding-left: 1.25rem;
+            margin-top: 0.5rem;
+        }
+        .legal-notice li {
+            margin-bottom: 0.4rem;
+        }
     </style>
 </head>
 <body>
@@ -367,6 +392,21 @@
             </div>
         </div>
     </div>
+
+    <footer class="legal-notice">
+        <h3>免責事項・データポリシー</h3>
+        <p>
+            本アプリケーションは研究・教育用途を想定した補助ツールです。提供する解析結果の正確性・完全性・有用性について、開発者は一切保証いたしません。結果の解釈および意思決定は、利用者ご自身の責任と専門的判断で行ってください。
+        </p>
+        <ul>
+            <li>本アプリケーションの利用により生じたいかなる損害・不利益についても、開発者は一切の責任を負いません。</li>
+            <li>アップロードされたデータは解析処理にのみ利用され、サーバー上に保存されません。セッション終了後は破棄されます。</li>
+            <li>機密性の高いデータを扱う場合は、事前に十分な確認と安全管理を行ってください。</li>
+        </ul>
+        <p>
+            Flask, Pandas, NumPy, SciPy, Matplotlib, Seaborn などの OSS ライブラリは、各プロジェクトのライセンス（MIT / BSD 等）に従って利用しています。詳細は <code>requirements.txt</code> を参照してください。
+        </p>
+    </footer>
 
     <script>
         // --- [新規追加] エラー回避のための安全な数値フォーマット関数 ---

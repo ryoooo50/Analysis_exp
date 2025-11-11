@@ -3,7 +3,16 @@
 """
 import numpy as np
 from typing import Dict, Any, Tuple, Sequence, List
-from scipy.stats import mannwhitneyu, wilcoxon, ttest_ind, shapiro, levene, norm
+from scipy.stats import (
+    mannwhitneyu,
+    wilcoxon,
+    ttest_ind,
+    shapiro,
+    levene,
+    norm,
+    f_oneway,
+    kruskal,
+)
 
 
 def run_shapiro(data: list) -> Dict[str, float]:
@@ -20,6 +29,14 @@ def run_shapiro(data: list) -> Dict[str, float]:
         return {"stat": 0, "p": 0}  # 3サンプル未満は検定不可
     stat, p = shapiro(data)
     return {"stat": stat, "p": p}
+
+
+def _safe_float(value):
+    try:
+        value_float = float(value)
+    except (TypeError, ValueError):
+        return None
+    return value_float if np.isfinite(value_float) else None
 
 
 def calculate_z_and_r_from_p(p_value: float, N: int, alternative: str) -> Tuple[float, float]:
@@ -285,6 +302,108 @@ def perform_ttest(
         "levene": {"stat": levene_stat, "p": levene_p},
         "equal_var": bool(equal_var),
         "message": message
+    }
+
+
+def perform_oneway_anova_or_kruskal(
+    groups: list,
+    alpha: float = 0.05
+) -> Dict[str, Any]:
+    """
+    グループ間の分散分析を実行し、正規性と等分散性が満たされる場合は
+    一元配置分散分析 (ANOVA)、満たされない場合はクラスカル・ウォリス検定を実行
+
+    Args:
+        groups: 各グループの数値データを格納したリスト
+        alpha: 有意水準
+
+    Returns:
+        検定結果の辞書
+    """
+    if len(groups) < 2:
+        raise ValueError("2群以上のデータを入力してください。")
+
+    cleaned_groups = []
+    for idx, group in enumerate(groups):
+        if not group:
+            raise ValueError(f"グループ {idx + 1} のデータが空です。")
+        cleaned_groups.append(group)
+
+    shapiro_results = [run_shapiro(group) for group in cleaned_groups]
+    group_summaries: List[Dict[str, Any]] = []
+    for idx, group in enumerate(cleaned_groups):
+        group_summaries.append({
+            "index": idx + 1,
+            "size": len(group),
+            "mean": _safe_float(np.mean(group)),
+            "std": _safe_float(np.std(group, ddof=1)) if len(group) > 1 else 0.0,
+            "shapiro": shapiro_results[idx],
+        })
+
+    all_normal = all(result["p"] > alpha for result in shapiro_results)
+
+    levene_stat, levene_p = np.nan, np.nan
+    equal_var = False
+    if len(cleaned_groups) >= 2:
+        levene_stat, levene_p = levene(*cleaned_groups)
+        equal_var = bool(levene_p > alpha)
+
+    k = len(cleaned_groups)
+    total_n = sum(len(group) for group in cleaned_groups)
+
+    if all_normal and equal_var:
+        # ANOVA を実行
+        stat, p_value = f_oneway(*cleaned_groups)
+        df_between = k - 1
+        df_within = total_n - k
+        effect_size_eta_sq = np.nan
+        if df_within > 0 and np.isfinite(stat):
+            effect_size_eta_sq = (stat * df_between) / ((stat * df_between) + df_within)
+
+        message = "全グループで正規性と等分散性が確認されたため、ANOVA を実行しました。"
+        return {
+            "test_name": "一元配置分散分析 (ANOVA)",
+            "stat_name": "F値",
+            "method": "anova",
+            "stat": _safe_float(stat),
+            "p_value": _safe_float(p_value),
+            "alpha": _safe_float(alpha),
+            "significant": bool(p_value <= alpha),
+            "groups": group_summaries,
+            "levene": {"stat": _safe_float(levene_stat), "p": _safe_float(levene_p)},
+            "all_normal": True,
+            "equal_var": True,
+            "effect_size_eta_sq": _safe_float(effect_size_eta_sq),
+            "effect_size_epsilon_sq": None,
+            "group_count": k,
+            "total_n": total_n,
+            "message": message,
+        }
+
+    # Kruskal-Wallis 検定を実行
+    stat, p_value = kruskal(*cleaned_groups)
+    effect_size_epsilon_sq = np.nan
+    if total_n - k > 0 and np.isfinite(stat):
+        effect_size_epsilon_sq = (stat - (k - 1)) / (total_n - k)
+
+    message = "正規性または等分散性が確認できなかったため、Kruskal-Wallis検定を実行しました。"
+    return {
+        "test_name": "クラスカル・ウォリス検定",
+        "stat_name": "H値",
+        "method": "kruskal",
+        "stat": _safe_float(stat),
+        "p_value": _safe_float(p_value),
+        "alpha": _safe_float(alpha),
+        "significant": bool(p_value <= alpha),
+        "groups": group_summaries,
+        "levene": {"stat": _safe_float(levene_stat), "p": _safe_float(levene_p)},
+        "all_normal": all_normal,
+        "equal_var": equal_var,
+        "effect_size_eta_sq": None,
+        "effect_size_epsilon_sq": _safe_float(effect_size_epsilon_sq),
+        "group_count": k,
+        "total_n": total_n,
+        "message": message,
     }
 
 

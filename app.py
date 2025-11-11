@@ -12,6 +12,7 @@ from utils.statistical_tests import (
     perform_mannwhitney_test,
     perform_wilcoxon_test,
     perform_ttest,
+    perform_oneway_anova_or_kruskal,
     apply_holm_correction,
 )
 import config
@@ -95,9 +96,35 @@ def _parse_input_dataset(raw_data: Any, field_name: str) -> list:
         values = parse_text_data(raw_data)
         if not values:
             raise ValueError(f"'{field_name}' が空です。")
-        return values
+    return values
 
     raise ValueError(f"'{field_name}' の形式が不正です。文字列または数値リストを指定してください。")
+
+
+def _parse_groups_payload(raw_groups: Any) -> list:
+    """
+    JSONペイロードから受け取った複数グループデータを数値リストのリストに変換
+
+    Args:
+        raw_groups: グループデータのリスト
+
+    Returns:
+        数値リストのリスト
+
+    Raises:
+        ValueError: データ変換に失敗した場合
+    """
+    if not isinstance(raw_groups, list) or len(raw_groups) < 2:
+        raise ValueError("2つ以上のグループデータをリストで指定してください。")
+
+    parsed_groups = []
+    for idx, raw_group in enumerate(raw_groups):
+        group_values = _parse_input_dataset(raw_group, f'groups[{idx}]')
+        if len(group_values) < 2:
+            raise ValueError(f"グループ {idx + 1} のデータ数が不足しています (2以上必要)。")
+        parsed_groups.append(group_values)
+
+    return parsed_groups
 
 
 def _parse_alpha_value(raw_alpha: Any) -> float:
@@ -144,10 +171,10 @@ def analyze_endpoint_peak():
     try:
         # パラメータの抽出
         params = extract_peak_params(request.form)
-        
+
         # ピーク分析の実行
         analysis_results = analyze_peak_data(file.stream, params)
-        
+
         # プロットの生成
         img_b64 = plot_angular_velocity_with_peaks(
             analysis_results["df"],
@@ -155,7 +182,7 @@ def analyze_endpoint_peak():
             'angular_velocity_filtered',
             analysis_results["peak_indices"]
         )
-        
+
         # レスポンスの構築
         return jsonify({
             "image": img_b64,
@@ -163,7 +190,7 @@ def analyze_endpoint_peak():
             "peak_count": analysis_results["peak_count"],
             "peak_averages": analysis_results["peak_averages"]
         })
-        
+
     except Exception as e:
         return handle_error(e, "Peak")
 
@@ -180,15 +207,13 @@ def analyze_endpoint_mw():
         data2_str = request.form.get('data2')
         alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
         alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
-        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
-        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
         
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
         
         # データの検証
         if not group1 or not group2:
-            raise ValueError("両方のグループにデータを入力してください。")
+             raise ValueError("両方のグループにデータを入力してください。")
         
         # 検定の実行
         results = perform_mannwhitney_test(group1, group2, alternative)
@@ -213,13 +238,13 @@ def analyze_endpoint_wilcoxon():
         data2_str = request.form.get('data2')
         alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
         alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
-        
+
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
-        
+
         # データの検証
         if not group1 or not group2:
-            raise ValueError("両方のグループにデータを入力してください。")
+             raise ValueError("両方のグループにデータを入力してください。")
         
         # 検定の実行
         results = perform_wilcoxon_test(group1, group2, alternative)
@@ -230,7 +255,7 @@ def analyze_endpoint_wilcoxon():
         
     except Exception as e:
         return handle_error(e, "Wilcoxon")
-
+    
 
 @app.route('/analyze-ttest', methods=['POST'])
 def analyze_endpoint_ttest():
@@ -243,13 +268,14 @@ def analyze_endpoint_ttest():
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
         alternative = request.form.get('alternative', config.DEFAULT_ALTERNATIVE)
-        
+        alpha = _parse_alpha_value(request.form.get('alpha', config.SIGNIFICANCE_LEVEL))
+
         group1 = parse_text_data(data1_str)
         group2 = parse_text_data(data2_str)
-        
+
         # データの検証
         if not group1 or not group2:
-            raise ValueError("両方のグループにデータを入力してください。")
+             raise ValueError("両方のグループにデータを入力してください。")
         
         # 検定の実行
         results = perform_ttest(group1, group2, alternative)
@@ -260,6 +286,29 @@ def analyze_endpoint_ttest():
         
     except Exception as e:
         return handle_error(e, "t-test")
+
+
+@app.route('/analyze-anova', methods=['POST'])
+def analyze_endpoint_anova():
+    """
+    分散分析 (ANOVA / Kruskal-Wallis) エンドポイント
+    """
+    payload = request.get_json(silent=True)
+    if not payload:
+        return jsonify({"error": "JSONボディが必要です。"}), 400
+
+    try:
+        groups_raw = payload.get('groups')
+        groups = _parse_groups_payload(groups_raw)
+        alpha = _parse_alpha_value(payload.get('alpha', config.SIGNIFICANCE_LEVEL))
+
+        results = perform_oneway_anova_or_kruskal(groups, alpha=alpha)
+        return jsonify(results)
+
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return handle_error(exc, "ANOVA/Kruskal")
 
 
 @app.route('/analyze-multiple-tests', methods=['POST'])
@@ -362,6 +411,33 @@ def analyze_multiple_tests():
     }
 
     return jsonify(response_payload)
+
+
+@app.route('/analyze-anova', methods=['POST'])
+def analyze_anova():
+    """
+    多群比較に対して ANOVA または Kruskal-Wallis を自動選択して実行
+    """
+    try:
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"error": "JSONボディが必要です。"}), 400
+
+        raw_groups = payload.get('groups')
+        if not isinstance(raw_groups, list) or len(raw_groups) < 2:
+            return jsonify({"error": "'groups' は2件以上の配列として指定してください。"}), 400
+
+        alpha = _parse_alpha_value(payload.get('alpha', config.SIGNIFICANCE_LEVEL))
+
+        groups = []
+        for idx, raw_group in enumerate(raw_groups):
+            groups.append(_parse_input_dataset(raw_group, f"groups[{idx}]"))
+
+        results = perform_oneway_anova_or_kruskal(groups, alpha=alpha)
+        return jsonify(results)
+
+    except Exception as e:
+        return handle_error(e, "ANOVA")
 
 
 if __name__ == '__main__':

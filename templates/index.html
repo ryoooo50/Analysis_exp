@@ -188,6 +188,7 @@
             <button class="tab-button active" data-tab="tab-mw">マン・ホイットニーU検定</button>
             <button class="tab-button" data-tab="tab-wilcoxon">ウィルコクソン順位符号付検定</button>
             <button class="tab-button" data-tab="tab-ttest">t検定</button>
+            <button class="tab-button" data-tab="tab-anova">分散分析 (ANOVA / Kruskal-Wallis)</button>
             <button class="tab-button" data-tab="tab-peak">ピーク分析</button>
         </div>
 
@@ -362,6 +363,35 @@
                 <h2>検定結果 (t-test)</h2>
                 <div id="result-text-ttest"></div>
                 <div id="result-text-ttest-multiple"></div>
+            </div>
+        </div>
+
+        <div id="tab-anova" class="tab-content">
+            <div class="card">
+                <form id="form-anova">
+                    <p>3群以上のデータに対して、正規性と等分散性を確認した上で ANOVA または Kruskal-Wallis 検定を自動的に実行します。</p>
+                    <div class="params-grid">
+                        <div class="param-group">
+                            <label for="anova-alpha">有意水準 (α)</label>
+                            <input type="number" id="anova-alpha" step="0.001" min="0" max="1" value="0.05">
+                        </div>
+                        <div class="param-group">
+                            <label for="anova-group-count">グループ数</label>
+                            <input type="number" id="anova-group-count" min="2" step="1" value="3">
+                        </div>
+                    </div>
+                    <div class="multiple-buttons">
+                        <button type="button" id="anova-groups-clear" class="btn-secondary">入力をクリア</button>
+                    </div>
+                    <div id="anova-groups-container" class="multiple-form-list"></div>
+                    <br>
+                    <button type="submit">検定開始</button>
+                </form>
+            </div>
+            <div id="spinner-anova" class="spinner"></div>
+            <div id="results-anova" class="card results">
+                <h2>検定結果 (ANOVA / Kruskal-Wallis)</h2>
+                <div id="result-text-anova"></div>
             </div>
         </div>
 
@@ -749,6 +779,182 @@
                 spinnerTTest.style.display = 'none';
             }
         });
+
+        const formAnova = document.getElementById('form-anova');
+        const spinnerAnova = document.getElementById('spinner-anova');
+        const resultsAnova = document.getElementById('results-anova');
+        const resultTextAnova = document.getElementById('result-text-anova');
+        const alphaAnovaInput = document.getElementById('anova-alpha');
+        const groupCountAnovaInput = document.getElementById('anova-group-count');
+        const clearAnovaButton = document.getElementById('anova-groups-clear');
+        const anovaGroupsContainer = document.getElementById('anova-groups-container');
+
+        function buildAnovaForms(count) {
+            const normalizedCount = Math.max(2, count);
+            anovaGroupsContainer.innerHTML = '';
+            for (let i = 0; i < normalizedCount; i += 1) {
+                const block = document.createElement('div');
+                block.className = 'multiple-form-block';
+                block.innerHTML = `
+                    <h5>グループ ${i + 1}</h5>
+                    <div class="param-group">
+                        <label for="anova-group-${i}">データ (カンマ区切り)</label>
+                        <textarea id="anova-group-${i}" rows="3" placeholder="4.1, 4.4, 4.2, ..."></textarea>
+                    </div>
+                `;
+                anovaGroupsContainer.appendChild(block);
+            }
+        }
+
+        if (formAnova) {
+            buildAnovaForms(parseInt(groupCountAnovaInput.value, 10) || 3);
+
+            groupCountAnovaInput.addEventListener('change', () => {
+                const normalized = Math.max(2, parseInt(groupCountAnovaInput.value, 10) || 3);
+                groupCountAnovaInput.value = normalized;
+                buildAnovaForms(normalized);
+            });
+
+            clearAnovaButton.addEventListener('click', () => {
+                anovaGroupsContainer.querySelectorAll('textarea').forEach((textarea) => {
+                    textarea.value = '';
+                });
+            });
+
+            formAnova.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const alphaValue = parseFloat(alphaAnovaInput.value);
+                if (Number.isNaN(alphaValue) || alphaValue <= 0 || alphaValue > 1) {
+                    alert('有意水準 (α) には 0 より大きく 1 以下の数値を入力してください。');
+                    return;
+                }
+
+                const textareas = anovaGroupsContainer.querySelectorAll('textarea');
+                if (textareas.length < 2) {
+                    alert('少なくとも2群以上のデータを入力してください。');
+                    return;
+                }
+
+                const groups = [];
+                for (let i = 0; i < textareas.length; i += 1) {
+                    const value = textareas[i].value.trim();
+                    if (!value) {
+                        alert(`グループ ${i + 1} のデータを入力してください。`);
+                        return;
+                    }
+                    groups.push(value);
+                }
+
+                spinnerAnova.style.display = 'block';
+                resultsAnova.style.display = 'none';
+                resultTextAnova.innerHTML = '';
+
+                try {
+                    const response = await fetch('/analyze-anova', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            alpha: alphaValue,
+                            groups,
+                        }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'サーバーエラー');
+                    }
+
+                    const alphaUsed = typeof data.alpha === 'number' ? data.alpha : alphaValue;
+                    const methodLabel = data.method === 'anova'
+                        ? '一元配置分散分析 (ANOVA)'
+                        : 'クラスカル・ウォリス検定';
+
+                    let html = `
+                        <div class="test-result-block">
+                            <h4>${methodLabel}</h4>
+                            <p>統計量 (${data.stat_name}): <b>${formatNumber(data.stat, 4)}</b></p>
+                            <p>P値 (p-value): <b>${formatNumber(data.p_value, 5)}</b></p>
+                            <p>有意水準 (α): <b>${formatNumber(alphaUsed, 3)}</b></p>
+                            ${data.message ? `<p><small>${data.message}</small></p>` : ''}
+                        </div>
+                    `;
+
+                    if (Array.isArray(data.groups)) {
+                        let rows = '';
+                        data.groups.forEach((group, idx) => {
+                            const shapiroRes = group.shapiro || {};
+                            rows += `
+                                <tr>
+                                    <td>グループ ${group.index || (idx + 1)}</td>
+                                    <td>${formatNumber(group.size, 0)}</td>
+                                    <td>${formatNumber(group.mean, 4)}</td>
+                                    <td>${formatNumber(group.std, 4)}</td>
+                                    <td>${formatNumber(shapiroRes.stat, 4)}</td>
+                                    <td>${formatNumber(shapiroRes.p, 4)}</td>
+                                </tr>
+                            `;
+                        });
+                        html += `
+                            <div class="test-result-block">
+                                <h4>グループ概要と正規性の検定 (Shapiro-Wilk)</h4>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>グループ</th>
+                                            <th>サンプル数</th>
+                                            <th>平均</th>
+                                            <th>標準偏差</th>
+                                            <th>Shapiro W</th>
+                                            <th>Shapiro p値</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                            </div>
+                        `;
+                    }
+
+                    if (data.levene && (data.levene.stat !== null || data.levene.p !== null)) {
+                        html += `
+                            <div class="test-result-block">
+                                <h4>等分散性の検定 (Levene)</h4>
+                                <p>Statistic = ${formatNumber(data.levene.stat, 4)}, p = ${formatNumber(data.levene.p, 4)}</p>
+                            </div>
+                        `;
+                    }
+
+                    if (data.method === 'anova' && data.effect_size_eta_sq !== null) {
+                        html += `
+                            <div class="test-result-block">
+                                <h4>効果量</h4>
+                                <p>η²: <b>${formatNumber(data.effect_size_eta_sq, 4)}</b></p>
+                            </div>
+                        `;
+                    }
+
+                    if (data.method === 'kruskal' && data.effect_size_epsilon_sq !== null) {
+                        html += `
+                            <div class="test-result-block">
+                                <h4>効果量</h4>
+                                <p>ε²: <b>${formatNumber(data.effect_size_epsilon_sq, 4)}</b></p>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <hr>
+                        ${renderSignificanceMessage(alphaUsed, data.significant)}
+                    `;
+
+                    resultTextAnova.innerHTML = html;
+                    resultsAnova.style.display = 'block';
+                } catch (error) {
+                    alert(`エラー: ${error.message}`);
+                } finally {
+                    spinnerAnova.style.display = 'none';
+                }
+            });
+        }
 
         function setupMultipleTestManager({
             testType,

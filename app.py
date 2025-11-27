@@ -6,15 +6,6 @@ from flask import Flask, request, jsonify, render_template
 from typing import Dict, Any, Tuple
 
 from utils.data_processing import parse_text_data
-from utils.peak_analysis import analyze_peak_data
-from utils.plotting import plot_angular_velocity_with_peaks
-from utils.statistical_tests import (
-    perform_mannwhitney_test,
-    perform_wilcoxon_test,
-    perform_ttest,
-    perform_oneway_anova_or_kruskal,
-    apply_holm_correction,
-)
 import config
 
 app = Flask(__name__)
@@ -169,6 +160,9 @@ def analyze_endpoint_peak():
         return jsonify({"error": "ファイルが選択されていません"}), 400
     
     try:
+        from utils.peak_analysis import analyze_peak_data
+        from utils.plotting import plot_angular_velocity_with_peaks
+
         # パラメータの抽出
         params = extract_peak_params(request.form)
 
@@ -190,7 +184,6 @@ def analyze_endpoint_peak():
             "peak_count": analysis_results["peak_count"],
             "peak_averages": analysis_results["peak_averages"]
         })
-
     except Exception as e:
         return handle_error(e, "Peak")
 
@@ -202,6 +195,7 @@ def analyze_endpoint_mw():
     対応のない2群間のノンパラメトリック検定を実行
     """
     try:
+        from utils.statistical_tests import perform_mannwhitney_test
         # データの取得とパース
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
@@ -233,6 +227,7 @@ def analyze_endpoint_wilcoxon():
     対応のある2群間のノンパラメトリック検定を実行
     """
     try:
+        from utils.statistical_tests import perform_wilcoxon_test
         # データの取得とパース
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
@@ -264,6 +259,7 @@ def analyze_endpoint_ttest():
     対応のない2群間のt検定を実行（正規性・等分散性の検定も含む）
     """
     try:
+        from utils.statistical_tests import perform_ttest
         # データの取得とパース
         data1_str = request.form.get('data1')
         data2_str = request.form.get('data2')
@@ -298,6 +294,7 @@ def analyze_endpoint_anova():
         return jsonify({"error": "JSONボディが必要です。"}), 400
 
     try:
+        from utils.statistical_tests import perform_oneway_anova_or_kruskal
         groups_raw = payload.get('groups')
         groups = _parse_groups_payload(groups_raw)
         alpha = _parse_alpha_value(payload.get('alpha', config.SIGNIFICANCE_LEVEL))
@@ -333,6 +330,13 @@ def analyze_multiple_tests():
     payload = request.get_json(silent=True)
     if not payload or 'tests' not in payload:
         return jsonify({"error": "JSONボディに 'tests' フィールドが必要です。"}), 400
+
+    from utils.statistical_tests import (
+        perform_mannwhitney_test,
+        perform_wilcoxon_test,
+        perform_ttest,
+        apply_holm_correction,
+    )
 
     tests_config = payload.get('tests', [])
     if not isinstance(tests_config, list) or not tests_config:
@@ -411,33 +415,6 @@ def analyze_multiple_tests():
     }
 
     return jsonify(response_payload)
-
-
-@app.route('/analyze-anova', methods=['POST'])
-def analyze_anova():
-    """
-    多群比較に対して ANOVA または Kruskal-Wallis を自動選択して実行
-    """
-    try:
-        payload = request.get_json(silent=True)
-        if not payload:
-            return jsonify({"error": "JSONボディが必要です。"}), 400
-
-        raw_groups = payload.get('groups')
-        if not isinstance(raw_groups, list) or len(raw_groups) < 2:
-            return jsonify({"error": "'groups' は2件以上の配列として指定してください。"}), 400
-
-        alpha = _parse_alpha_value(payload.get('alpha', config.SIGNIFICANCE_LEVEL))
-
-        groups = []
-        for idx, raw_group in enumerate(raw_groups):
-            groups.append(_parse_input_dataset(raw_group, f"groups[{idx}]"))
-
-        results = perform_oneway_anova_or_kruskal(groups, alpha=alpha)
-        return jsonify(results)
-
-    except Exception as e:
-        return handle_error(e, "ANOVA")
 
 
 if __name__ == '__main__':

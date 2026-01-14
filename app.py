@@ -37,7 +37,7 @@ def extract_peak_params(request_form) -> Dict[str, Any]:
     Returns:
         ピーク検出パラメータの辞書
     """
-    return {
+    params = {
         'min_peak_height': float(
             request_form.get('min_peak_height', config.DEFAULT_PEAK_PARAMS['min_peak_height'])
         ),
@@ -51,6 +51,13 @@ def extract_peak_params(request_form) -> Dict[str, Any]:
             request_form.get('peak_distance', config.DEFAULT_PEAK_PARAMS['peak_distance'])
         ),
     }
+    
+    # 対象関節（指定がある場合のみ追加）
+    target_joint = request_form.get('target_joint')
+    if target_joint and target_joint.strip():
+        params['target_joint'] = target_joint.strip()
+    
+    return params
 
 
 def _parse_input_dataset(raw_data: Any, field_name: str) -> list:
@@ -143,6 +150,44 @@ def _parse_alpha_value(raw_alpha: Any) -> float:
 def index():
     """メインページを表示"""
     return render_template('index.html')
+
+
+@app.route('/get-available-joints', methods=['POST'])
+def get_available_joints():
+    """
+    CSVファイルから利用可能な関節リストを取得するエンドポイント
+    VRMログフォーマットの場合、モード13のrotation_y列を抽出して返す
+    """
+    if 'file' not in request.files:
+        return jsonify({"error": "ファイルがありません"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "ファイルが選択されていません"}), 400
+    
+    try:
+        from utils.data_processing import detect_csv_format, get_available_joints_from_vrm_log
+        
+        # フォーマットを判別
+        csv_format = detect_csv_format(file.stream)
+        
+        if csv_format == 'vrm_log':
+            # VRMログフォーマットの場合、利用可能な関節リストを取得
+            joints = get_available_joints_from_vrm_log(file.stream)
+            return jsonify({
+                "format": "vrm_log",
+                "joints": joints,
+                "default_joint": config.ANGLE_COL
+            })
+        else:
+            # シンプルフォーマットの場合、固定の関節を返す
+            return jsonify({
+                "format": "simple",
+                "joints": [config.ANGLE_COL],
+                "default_joint": config.ANGLE_COL
+            })
+    except Exception as e:
+        return handle_error(e, "GetJoints")
 
 
 @app.route('/analyze-peak', methods=['POST'])

@@ -1,15 +1,21 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>リーチング分析・統計アプリ</title>
     <style>
         :root {
-            --primary-color: #007bff; --light-gray: #f8f9fa; --gray: #6c757d;
-            --border-color: #dee2e6; --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            --danger-color: #dc3545; --success-color: #28a745;
+            --primary-color: #007bff;
+            --light-gray: #f8f9fa;
+            --gray: #6c757d;
+            --border-color: #dee2e6;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --danger-color: #dc3545;
+            --success-color: #28a745;
         }
+
         body {
             font-family: var(--font-family);
             background-color: var(--light-gray);
@@ -22,32 +28,119 @@
             min-height: 100vh;
             box-sizing: border-box;
         }
+
         .container {
             width: 100%;
             max-width: 900px;
             margin: 0 auto 2rem auto;
         }
+
         footer {
             width: 100%;
             max-width: 900px;
         }
-        .card { background: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 2rem; margin-bottom: 2rem; }
-        h1, h2, h3, h4 { color: #333; }
-        h1 { color: var(--primary-color); text-align: center; }
-        p { text-align: center; color: var(--gray); }
-        .tab-buttons { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 2rem; }
-        .tab-button { padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-size: 1.1rem; font-weight: 500; color: var(--gray); border-bottom: 3px solid transparent; margin-bottom: -2px; }
-        .tab-button.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .upload-area { border: 2px dashed var(--primary-color); border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: background-color 0.2s ease-in-out; }
-        .upload-area.drag-over { background-color: #e9f5ff; }
-        #file-input-peak { display: none; }
-        .file-name { margin-top: 1rem; font-weight: bold; color: var(--primary-color); }
-        .params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 1rem; }
-        .param-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-        .param-group input, .param-group select { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
-        
+
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: #333;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+        }
+
+        p {
+            text-align: center;
+            color: var(--gray);
+        }
+
+        .tab-buttons {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .tab-button {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--gray);
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--primary-color);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .upload-area.drag-over {
+            background-color: #e9f5ff;
+        }
+
+        #file-input-peak {
+            display: none;
+        }
+
+        .file-name {
+            margin-top: 1rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .param-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .param-group input,
+        .param-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
         /* --- テキストエリアのスタイル --- */
         .param-group textarea {
             width: 100%;
@@ -60,19 +153,92 @@
             font-size: 0.9rem;
         }
 
-        button[type="submit"] { width: 100%; padding: 0.75rem; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
-        button[type="submit"]:hover { background-color: #0056b3; }
-        .results { display: none; }
-        .spinner { display: none; margin: 2rem auto; width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .result-summary { text-align: center; margin-bottom: 2rem; }
-        .result-summary .peak-count { font-size: 3rem; font-weight: bold; color: var(--primary-color); }
-        #plot-container img { max-width: 100%; border-radius: 4px; }
-        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
-        th { background-color: var(--light-gray); }
-        .form-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        button[type="submit"] {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .spinner {
+            display: none;
+            margin: 2rem auto;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .result-summary {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .result-summary .peak-count {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        #plot-container img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: var(--light-gray);
+        }
+
+        .form-group-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
 
         /* --- [新規追加] 統計結果のスタイル --- */
         .test-result-block {
@@ -82,26 +248,31 @@
             padding: 1.5rem;
             margin-bottom: 1.5rem;
         }
+
         .test-result-block h4 {
             margin-top: 0;
             color: var(--primary-color);
             border-bottom: 1px solid #eee;
             padding-bottom: 0.5rem;
         }
+
         .significant {
             color: var(--success-color);
             font-weight: bold;
             font-size: 1.1rem;
         }
+
         .not-significant {
             color: var(--danger-color);
             font-weight: bold;
             font-size: 1.1rem;
         }
+
         .muted {
             color: var(--gray);
             font-size: 0.9rem;
         }
+
         .toggle-label {
             display: inline-flex;
             align-items: center;
@@ -110,10 +281,12 @@
             cursor: pointer;
             margin-bottom: 1rem;
         }
+
         .multiple-settings {
             display: none;
             margin-top: 1.5rem;
         }
+
         .btn-secondary {
             padding: 0.5rem 1rem;
             background-color: var(--border-color);
@@ -121,62 +294,74 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         .btn-secondary:hover {
             background-color: #e2e6ea;
         }
+
         .multiple-section {
             margin-top: 1.5rem;
             padding-top: 1.5rem;
             border-top: 1px solid var(--border-color);
         }
+
         .multiple-buttons {
             margin-top: 1rem;
             display: flex;
             gap: 0.75rem;
             flex-wrap: wrap;
         }
+
         .multiple-form-list {
             display: grid;
             gap: 1rem;
             margin-top: 1rem;
         }
+
         .multiple-form-block {
             border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 1rem;
             background: #fff;
         }
+
         .multiple-form-block h5 {
             margin: 0 0 0.5rem 0;
             color: var(--primary-color);
         }
+
         footer {
             margin-top: 3rem;
             padding: 1.5rem;
             background-color: #fff;
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
+
         footer h3 {
             margin-top: 0;
             color: var(--primary-color);
         }
+
         .legal-notice p,
         .legal-notice ul {
             font-size: 0.9rem;
             color: var(--gray);
             line-height: 1.6;
         }
+
         .legal-notice ul {
             padding-left: 1.25rem;
             margin-top: 0.5rem;
         }
+
         .legal-notice li {
             margin-bottom: 0.4rem;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="card">
@@ -292,7 +477,8 @@
                                 </div>
                             </div>
                             <div class="multiple-buttons">
-                                <button type="button" id="wilcoxon-multiple-copy" class="btn-secondary">現在の入力を1件目にコピー</button>
+                                <button type="button" id="wilcoxon-multiple-copy"
+                                    class="btn-secondary">現在の入力を1件目にコピー</button>
                                 <button type="button" id="wilcoxon-multiple-run">Holm補正を実行</button>
                             </div>
                             <div id="wilcoxon-multiple-form-container" class="multiple-form-list"></div>
@@ -350,7 +536,8 @@
                                 </div>
                             </div>
                             <div class="multiple-buttons">
-                                <button type="button" id="ttest-multiple-copy" class="btn-secondary">現在の入力を1件目にコピー</button>
+                                <button type="button" id="ttest-multiple-copy"
+                                    class="btn-secondary">現在の入力を1件目にコピー</button>
                                 <button type="button" id="ttest-multiple-run">Holm補正を実行</button>
                             </div>
                             <div id="ttest-multiple-form-container" class="multiple-form-list"></div>
@@ -403,6 +590,19 @@
                         <p>ここにCSVファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択</p>
                         <div id="file-name-peak" class="file-name"></div>
                     </div>
+
+                    <!-- 関節選択セクション -->
+                    <div id="joint-selection-container" style="display: none; margin-top: 1rem;">
+                        <h3>解析対象の関節</h3>
+                        <div class="param-group">
+                            <label for="target_joint">関節を選択</label>
+                            <select id="target_joint">
+                                <option value="">デフォルト (Lower_Arm_R/rotation_y)</option>
+                            </select>
+                            <small style="color: var(--gray);">VRMログファイルの場合、利用可能な関節がリストに表示されます。</small>
+                        </div>
+                    </div>
+
                     <h3>ピーク検出パラメータ</h3>
                     <div class="params-grid">
                         <div class="param-group">
@@ -457,7 +657,8 @@
         </p>
         <p>
             統計検定ロジックの詳細な検証内容は
-            <a href="https://github.com/ryoooo50/Analysis_exp/blob/main/docs/statistical_validation.md" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/ryoooo50/Analysis_exp/blob/main/docs/statistical_validation.md" target="_blank"
+                rel="noopener noreferrer">
                 統計検証メモ
             </a>
             を参照してください。
@@ -501,30 +702,101 @@
             });
         });
 
-        // --- ピーク分析タブのUIロジック (変更なし) ---
+        // --- ピーク分析タブのUIロジック ---
         function setupUploadArea(uploadAreaId, fileInputId, fileNameId) {
             const uploadArea = document.getElementById(uploadAreaId);
             const fileInput = document.getElementById(fileInputId);
             const fileNameDisplay = document.getElementById(fileNameId);
-            if (!uploadArea) return; 
-            
+            if (!uploadArea) return;
+
             uploadArea.addEventListener('click', () => fileInput.click());
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, e => {e.preventDefault(); e.stopPropagation();}, false));
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false));
             ['dragenter', 'dragover'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.add('drag-over'), false));
             ['dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('drag-over'), false));
             uploadArea.addEventListener('drop', (e) => {
                 fileInput.files = e.dataTransfer.files;
                 updateFileName(fileInput, fileNameDisplay);
+                // ファイルがドロップされたら関節リストを取得
+                fetchAvailableJoints(fileInput.files[0]);
             }, false);
-            fileInput.addEventListener('change', () => updateFileName(fileInput, fileNameDisplay));
+            fileInput.addEventListener('change', () => {
+                updateFileName(fileInput, fileNameDisplay);
+                // ファイルが選択されたら関節リストを取得
+                if (fileInput.files.length > 0) {
+                    fetchAvailableJoints(fileInput.files[0]);
+                }
+            });
         }
         function updateFileName(fileInput, fileNameDisplay) {
             fileNameDisplay.textContent = fileInput.files.length > 0 ? `選択中: ${fileInput.files[0].name}` : '';
         }
+
+        // 関節リストを取得してドロップダウンを更新する関数
+        async function fetchAvailableJoints(file) {
+            const jointContainer = document.getElementById('joint-selection-container');
+            const jointSelect = document.getElementById('target_joint');
+
+            if (!file) {
+                jointContainer.style.display = 'none';
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/get-available-joints', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    console.error('関節リスト取得エラー:', data.error);
+                    jointContainer.style.display = 'none';
+                    return;
+                }
+
+                // ドロップダウンをクリアして新しいオプションを追加
+                jointSelect.innerHTML = '';
+
+                // デフォルトオプション
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = `デフォルト (${data.default_joint})`;
+                jointSelect.appendChild(defaultOption);
+
+                // 利用可能な関節を追加
+                if (data.joints && data.joints.length > 0) {
+                    data.joints.forEach(joint => {
+                        const option = document.createElement('option');
+                        option.value = joint;
+                        // 関節名を見やすく表示（例: Lower_Arm_R/rotation_y → Lower_Arm_R）
+                        const displayName = joint.replace('/rotation_y', '');
+                        option.textContent = displayName;
+                        // デフォルト関節の場合は選択状態にする
+                        if (joint === data.default_joint) {
+                            option.selected = true;
+                        }
+                        jointSelect.appendChild(option);
+                    });
+
+                    // VRMログの場合のみ関節選択を表示
+                    if (data.format === 'vrm_log') {
+                        jointContainer.style.display = 'block';
+                    } else {
+                        jointContainer.style.display = 'none';
+                    }
+                } else {
+                    jointContainer.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('関節リスト取得中にエラー:', error);
+                jointContainer.style.display = 'none';
+            }
+        }
+
         setupUploadArea('upload-area-peak', 'file-input-peak', 'file-name-peak');
 
         // --- フォーム送信ロジック ---
-        // 1. ピーク分析フォーム (変更なし)
+        // 1. ピーク分析フォーム
         const formPeak = document.getElementById('form-peak');
         const fileInputPeak = document.getElementById('file-input-peak');
         const spinnerPeak = document.getElementById('spinner-peak');
@@ -543,11 +815,17 @@
             formData.append('peak_prominence', document.getElementById('peak_prominence').value);
             formData.append('peak_distance', document.getElementById('peak_distance').value);
 
+            // 選択された関節を送信（空でなければ）
+            const targetJoint = document.getElementById('target_joint').value;
+            if (targetJoint) {
+                formData.append('target_joint', targetJoint);
+            }
+
             try {
                 const response = await fetch('/analyze-peak', { method: 'POST', body: formData });
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
-                
+
                 document.getElementById('plot-container').innerHTML = '';
                 document.getElementById('averages-container').innerHTML = '';
                 document.getElementById('table-container').innerHTML = '';
@@ -556,7 +834,7 @@
                 const img = document.createElement('img');
                 img.src = `data:image/png;base64,${results.image}`;
                 document.getElementById('plot-container').appendChild(img);
-                
+
                 if (results.peak_averages && results.peak_averages.length > 0) {
                     const h4 = document.createElement('h4'); h4.textContent = '10回ごとの平均';
                     document.getElementById('averages-container').appendChild(h4);
@@ -717,7 +995,7 @@
                     <p><b>解釈:</b> ${results.normality ? '両群とも正規性を棄却できません (p > 0.05)。' : '<span class="not-significant">少なくとも一方の群が正規性に従いません (p <= 0.05)。</span>'}</p>
                 </div>
             `;
-            
+
             // Levene検定の結果 (dfなどと一緒に返ってくる)
             html += `
                 <div class="test-result-block">
@@ -753,7 +1031,7 @@
                 ${renderSignificanceMessage(alphaVal, isSignificant)}
                 ${results.message ? `<p><small><i>${results.message}</i></small></p>` : ''}
             `;
-            
+
             resultTextElement.innerHTML = html;
             resultsContainer.style.display = 'block';
         }
@@ -776,7 +1054,7 @@
                 const response = await fetch('/analyze-ttest', { method: 'POST', body: formData });
                 const results = await response.json();
                 if (!response.ok) throw new Error(results.error || 'サーバーエラー');
-                
+
                 // 修正された関数で結果を表示
                 displayTestResult(resultsTTest, resultTextTTest, results);
 
@@ -1264,4 +1542,5 @@
         });
     </script>
 </body>
+
 </html>

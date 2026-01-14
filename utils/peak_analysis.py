@@ -81,6 +81,11 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
     Args:
         file_stream: CSVファイルストリーム
         params: ピーク検出パラメータ
+            - min_peak_height: 最小ピーク高さ
+            - max_peak_height: 最大ピーク高さ
+            - peak_prominence: ピークの顕著さ
+            - peak_distance: ピーク間の最小距離
+            - target_joint: 対象関節名（オプション、デフォルトはconfig.ANGLE_COL）
         
     Returns:
         分析結果の辞書
@@ -88,16 +93,19 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
     Raises:
         ValueError: 必要な列が見つからない場合
     """
-    df = load_csv_data(file_stream)
+    # 対象関節を取得（指定がなければデフォルト値を使用）
+    target_joint = params.get('target_joint', config.ANGLE_COL)
+    
+    df = load_csv_data(file_stream, target_joint)
     
     # 必要な列のチェック
-    if config.TIME_COL not in df.columns or config.ANGLE_COL not in df.columns:
+    if config.TIME_COL not in df.columns or target_joint not in df.columns:
         raise ValueError(
-            f"CSVに '{config.TIME_COL}' または '{config.ANGLE_COL}' の列が見つかりません。"
+            f"CSVに '{config.TIME_COL}' または '{target_joint}' の列が見つかりません。"
         )
     
     # 角度をラジアンに変換
-    df['angle_rad'] = np.deg2rad(df[config.ANGLE_COL])
+    df['angle_rad'] = np.deg2rad(df[target_joint])
     
     # 角速度の計算
     df = calculate_angular_velocity(df, config.TIME_COL, 'angle_rad')

@@ -9,7 +9,7 @@ TIME_COL = 'time'
 ANGLE_COL = 'Lower_Arm_R/rotation_y'
 
 # フィルタリング設定
-CUTOFF_FREQ = 5.0
+CUTOFF_FREQ = 15.0
 FILTER_ORDER = 4
 
 # ピーク検出のデフォルトパラメータ

@@ -129,45 +129,43 @@ def parse_vrm_log_csv(file_stream, target_column: Optional[str] = None) -> pd.Da
     except ValueError:
         raise ValueError(f"必要な列 '{target_column}' がモード13のデータに見つかりません")
     
-    # データ行を解析
-    time_values = []
-    angle_values = []
-    
+    # データ行をフィルタリングして一括処理（最適化版）
+    # clientReceiveで始まり、モード13のデータ行のみを抽出
+    data_lines = []
     for line in lines:
-        parts = line.split(',')
-        if len(parts) < 4:
-            continue
-        
-        # データ行の判別: モードが13のデータ行を抽出
-        from_field = parts[0]
-        mode_field = parts[2] if len(parts) > 2 else ''
-        
-        # clientReceive行でモード13のデータを取得
-        if from_field.startswith('clientReceive') and mode_field == '13':
-            try:
-                # 時刻を解析（例: 2026/01/13 16:02:40.372）
-                time_str = parts[1].strip()
-                dt = datetime.strptime(time_str, '%Y/%m/%d %H:%M:%S.%f')
-                
-                # データ部分を取得（parts[3:]がデータ）
-                data_parts = parts[3:]
-                
-                if len(data_parts) > target_idx:
-                    angle_str = data_parts[target_idx].strip()
-                    if angle_str:  # 空でない場合のみ
-                        angle_val = float(angle_str)
-                        time_values.append(dt)
-                        angle_values.append(angle_val)
-            except (ValueError, IndexError):
-                # パースエラーはスキップ
-                continue
+        if line.startswith('clientReceive') and ',13,' in line:
+            data_lines.append(line)
     
-    if len(time_values) == 0:
+    if not data_lines:
         raise ValueError("有効なデータ行が見つかりませんでした")
     
+    # pandasで一括処理
+    # データをリスト形式で高速に抽出
+    time_strings = []
+    angle_values = []
+    
+    for line in data_lines:
+        parts = line.split(',')
+        if len(parts) >= 4 + target_idx:
+            time_str = parts[1].strip()
+            angle_str = parts[3 + target_idx].strip()
+            if time_str and angle_str:
+                try:
+                    angle_val = float(angle_str)
+                    time_strings.append(time_str)
+                    angle_values.append(angle_val)
+                except ValueError:
+                    continue
+    
+    if not time_strings:
+        raise ValueError("有効なデータ行が見つかりませんでした")
+    
+    # pd.to_datetimeで一括変換（datetime.strptimeより大幅に高速）
+    time_datetimes = pd.to_datetime(time_strings, format='%Y/%m/%d %H:%M:%S.%f')
+    
     # 時間を秒単位に変換（最初のタイムスタンプからの経過秒数）
-    base_time = time_values[0]
-    time_seconds = [(t - base_time).total_seconds() for t in time_values]
+    base_time = time_datetimes[0]
+    time_seconds = (time_datetimes - base_time).total_seconds()
     
     # DataFrameを作成
     df = pd.DataFrame({

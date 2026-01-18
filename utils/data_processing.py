@@ -249,10 +249,10 @@ def apply_lowpass_filter(data: np.ndarray, cutoff: float, fs: float, order: int 
 
 def parse_text_data(data_string: str) -> List[float]:
     """
-    カンマ区切りのテキストを数値のリストに変換する
+    カンマ区切りまたは改行区切りのテキストを数値のリストに変換する
     
     Args:
-        data_string: カンマ区切りの数値文字列
+        data_string: カンマ区切りまたは改行区切りの数値文字列
         
     Returns:
         数値のリスト
@@ -263,8 +263,14 @@ def parse_text_data(data_string: str) -> List[float]:
     if not data_string:
         return []
     
-    # 全角カンマを半角に置換、空白を削除
-    data_string = data_string.replace('，', ',').strip()
+    # 全角カンマを半角に置換
+    data_string = data_string.replace('，', ',')
+    
+    # 改行（\r\n, \n, \r）をカンマに変換して統一
+    data_string = data_string.replace('\r\n', ',').replace('\n', ',').replace('\r', ',')
+    
+    # 空白を削除
+    data_string = data_string.strip()
     
     values = []
     for item in data_string.split(','):
@@ -275,7 +281,7 @@ def parse_text_data(data_string: str) -> List[float]:
             except ValueError:
                 raise ValueError(
                     f"データ '{item}' を数値に変換できません。"
-                    "カンマ区切りで数値を入力してください。"
+                    "カンマ区切りまたは改行区切りで数値を入力してください。"
                 )
     return values
 

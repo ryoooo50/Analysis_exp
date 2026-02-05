@@ -603,6 +603,7 @@
                         </div>
                     </div>
 
+
                     <h3>ピーク検出パラメータ</h3>
                     <div class="params-grid">
                         <div class="param-group">
@@ -620,6 +621,21 @@
                         <div class="param-group">
                             <label for="peak_distance">最小距離 (点)</label>
                             <input type="number" id="peak_distance" value="50" step="1">
+                        </div>
+                    </div>
+
+                    <h3>表示オプション</h3>
+                    <div class="params-grid">
+                        <div class="param-group">
+                            <label for="y_axis_max">Y軸最大値 (rad/s)</label>
+                            <input type="number" id="y_axis_max" placeholder="空欄=自動" step="0.1" min="0">
+                            <small style="color: var(--gray);">空欄の場合はデータに合わせた自動スケール</small>
+                        </div>
+                        <div class="param-group">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="filter_outliers"> 異常値を自動除去 (IQR法)
+                            </label>
+                            <small style="color: var(--gray);">四分位範囲の1.5倍を超えるピークを除外</small>
                         </div>
                     </div>
                     <br>
@@ -821,6 +837,16 @@
                 formData.append('target_joint', targetJoint);
             }
 
+            // Y軸最大値（空でなければ）
+            const yAxisMax = document.getElementById('y_axis_max').value;
+            if (yAxisMax) {
+                formData.append('y_axis_max', yAxisMax);
+            }
+
+            // 異常値フィルタ
+            const filterOutliers = document.getElementById('filter_outliers').checked;
+            formData.append('filter_outliers', filterOutliers ? 'true' : 'false');
+
             try {
                 const response = await fetch('/analyze-peak', { method: 'POST', body: formData });
                 const results = await response.json();
@@ -829,7 +855,13 @@
                 document.getElementById('plot-container').innerHTML = '';
                 document.getElementById('averages-container').innerHTML = '';
                 document.getElementById('table-container').innerHTML = '';
-                document.getElementById('peak-count').textContent = results.peak_count;
+
+                // ピーク数表示（異常値除去情報があれば追加）
+                let peakCountText = results.peak_count;
+                if (results.removed_outliers_count && results.removed_outliers_count > 0) {
+                    peakCountText += ` (${results.removed_outliers_count}件の異常値を除去)`;
+                }
+                document.getElementById('peak-count').innerHTML = peakCountText;
 
                 const img = document.createElement('img');
                 img.src = `data:image/png;base64,${results.image}`;

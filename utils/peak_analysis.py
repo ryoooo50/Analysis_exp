@@ -74,6 +74,28 @@ def calculate_peak_averages(peak_info: pd.DataFrame, group_size: int = 10) -> Li
     return peak_averages
 
 
+def filter_outliers_iqr(peak_heights: np.ndarray, multiplier: float = 1.5) -> np.ndarray:
+    """
+    IQR法で異常値を検出し、正常範囲のインデックスマスクを返す
+    
+    Args:
+        peak_heights: ピーク高さの配列
+        multiplier: IQR倍率（デフォルト1.5）
+        
+    Returns:
+        正常値のブールマスク配列
+    """
+    if len(peak_heights) == 0:
+        return np.array([], dtype=bool)
+    
+    q1 = np.percentile(peak_heights, 25)
+    q3 = np.percentile(peak_heights, 75)
+    iqr = q3 - q1
+    upper_bound = q3 + multiplier * iqr
+    
+    return peak_heights <= upper_bound
+
+
 def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     CSVファイルからピーク分析を実行
@@ -86,6 +108,7 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
             - peak_prominence: ピークの顕著さ
             - peak_distance: ピーク間の最小距離
             - target_joint: 対象関節名（オプション、デフォルトはconfig.ANGLE_COL）
+            - filter_outliers: 異常値除去を行うか（オプション、デフォルトFalse）
         
     Returns:
         分析結果の辞書
@@ -95,6 +118,7 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     # 対象関節を取得（指定がなければデフォルト値を使用）
     target_joint = params.get('target_joint', config.ANGLE_COL)
+    filter_outliers = params.get('filter_outliers', False)
     
     df = load_csv_data(file_stream, target_joint)
     
@@ -131,6 +155,16 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
         distance=params['peak_distance']
     )
     
+    # 異常値フィルタリング（オプション）
+    removed_outliers_count = 0
+    if filter_outliers and len(peaks) > 0:
+        peak_heights = properties.get('peak_heights', np.array([]))
+        if len(peak_heights) > 0:
+            valid_mask = filter_outliers_iqr(peak_heights)
+            removed_outliers_count = int(len(peaks) - np.sum(valid_mask))
+            peaks = peaks[valid_mask]
+            properties['peak_heights'] = peak_heights[valid_mask]
+    
     # ピーク情報の作成
     peak_info = pd.DataFrame({
         'peak_time_s': df.loc[peaks, config.TIME_COL].to_numpy(),
@@ -145,7 +179,8 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
         "peak_count": len(peaks),
         "peak_averages": peak_averages,
         "df": df,
-        "peak_indices": peaks
+        "peak_indices": peaks,
+        "removed_outliers_count": removed_outliers_count
     }
 
 

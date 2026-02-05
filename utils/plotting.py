@@ -15,7 +15,8 @@ def plot_angular_velocity_with_peaks(
     df: pd.DataFrame,
     time_col: str,
     velocity_col: str,
-    peaks: np.ndarray
+    peaks: np.ndarray,
+    y_max: float = None
 ) -> str:
     """
     角速度と検出されたピークをプロットし、base64エンコードされた画像を返す
@@ -25,6 +26,7 @@ def plot_angular_velocity_with_peaks(
         time_col: 時間列名
         velocity_col: 角速度列名
         peaks: ピークインデックスの配列
+        y_max: Y軸の最大値（Noneの場合は自動スケール）
         
     Returns:
         base64エンコードされた画像文字列
@@ -51,6 +53,10 @@ def plot_angular_velocity_with_peaks(
     ax1.legend()
     plt.title('Angular Velocity and Detected Peaks')
     plt.grid(True)
+    
+    # Y軸スケール調整
+    if y_max is not None and y_max > 0:
+        ax1.set_ylim(0, y_max)
     
     # base64エンコード
     buf = io.BytesIO()

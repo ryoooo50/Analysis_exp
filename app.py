@@ -57,6 +57,17 @@ def extract_peak_params(request_form) -> Dict[str, Any]:
     if target_joint and target_joint.strip():
         params['target_joint'] = target_joint.strip()
     
+    # Y軸最大値（指定がある場合のみ追加）
+    y_axis_max = request_form.get('y_axis_max')
+    if y_axis_max and y_axis_max.strip():
+        try:
+            params['y_axis_max'] = float(y_axis_max.strip())
+        except ValueError:
+            pass  # 無効な値は無視
+    
+    # 異常値フィルタ
+    params['filter_outliers'] = request_form.get('filter_outliers', 'false').lower() == 'true'
+    
     return params
 
 
@@ -214,21 +225,28 @@ def analyze_endpoint_peak():
         # ピーク分析の実行
         analysis_results = analyze_peak_data(file.stream, params)
 
-        # プロットの生成
+        # プロットの生成（Y軸最大値を渡す）
         img_b64 = plot_angular_velocity_with_peaks(
             analysis_results["df"],
             config.TIME_COL,
             'angular_velocity_filtered',
-            analysis_results["peak_indices"]
+            analysis_results["peak_indices"],
+            y_max=params.get('y_axis_max')
         )
 
         # レスポンスの構築
-        return jsonify({
+        response = {
             "image": img_b64,
             "peaks": analysis_results["peaks"],
             "peak_count": analysis_results["peak_count"],
             "peak_averages": analysis_results["peak_averages"]
-        })
+        }
+        
+        # 異常値除去の情報を追加
+        if analysis_results.get("removed_outliers_count", 0) > 0:
+            response["removed_outliers_count"] = analysis_results["removed_outliers_count"]
+        
+        return jsonify(response)
     except Exception as e:
         return handle_error(e, "Peak")
 

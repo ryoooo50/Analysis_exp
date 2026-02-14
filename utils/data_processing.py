@@ -222,8 +222,15 @@ def calculate_angular_velocity(df: pd.DataFrame, time_col: str, angle_rad_col: s
     """
     time_diff = df[time_col].diff()
     angle_diff = df[angle_rad_col].diff()
+    # 符号付きの角速度
     angular_velocity = np.where(time_diff > 0, angle_diff / time_diff, 0)
+    
+    # 符号付きデータを保存（フィルタ処理用）
+    df['angular_velocity_signed'] = angular_velocity
+    
+    # 絶対値データを保存（表示・互換性用）
     df['angular_velocity_raw'] = np.abs(angular_velocity)
+    
     return df
 
 

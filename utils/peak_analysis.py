@@ -137,13 +137,16 @@ def analyze_peak_data(file_stream, params: Dict[str, Any]) -> Dict[str, Any]:
     # サンプリング周波数の計算
     sampling_freq = 1 / df[config.TIME_COL].diff().mean()
     
-    # ローパスフィルタの適用
-    df['angular_velocity_filtered'] = apply_lowpass_filter(
-        df['angular_velocity_raw'].fillna(0),
+    # ローパスフィルタの適用（符号付きデータに対して行う）
+    angular_velocity_signed_filtered = apply_lowpass_filter(
+        df['angular_velocity_signed'].fillna(0),
         cutoff=config.CUTOFF_FREQ,
         fs=sampling_freq,
         order=config.FILTER_ORDER
     )
+    
+    # フィルタ後のデータを絶対値化
+    df['angular_velocity_filtered'] = np.abs(angular_velocity_signed_filtered)
     
     # ピーク検出
     peak_height_range = (params['min_peak_height'], params['max_peak_height'])
